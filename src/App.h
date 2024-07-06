@@ -1,6 +1,6 @@
 #pragma once
 
-struct SDL_Window;
+#include <SDL2/SDL.h>
 
 class App {
 public:
@@ -14,6 +14,8 @@ private:
   void render();
 
   SDL_Window *window{nullptr};
+  SDL_GLContext glContext{nullptr};
+
   bool isRunning{false};
   bool frameLimit{true};
   float frameTime{0.f};

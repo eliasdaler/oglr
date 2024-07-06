@@ -33,5 +33,12 @@ endif()
 
 
 if(WIN32)
-  target_link_libraries(app PRIVATE SDL2::SDL2main)
+  target_link_libraries(app PRIVATE
+    SDL2::SDL2main
+  )
 endif()
+
+# other libs
+target_link_libraries(app PUBLIC
+  glad::glad
+)
