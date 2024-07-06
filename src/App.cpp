@@ -137,27 +137,61 @@ void App::init()
         glDeleteShader(fragmentShader);
     }
 
-    {
+    { // make cube
         // clang-format off
         float vertices[] = {
-            // positions          // texture coords
-             0.5f,  0.5f, 0.0f,   1.0f, 1.0f,   // top right
-             0.5f, -0.5f, 0.0f,   1.0f, 0.0f,   // bottom right
-            -0.5f, -0.5f, 0.0f,   0.0f, 0.0f,   // bottom left
-            -0.5f,  0.5f, 0.0f,   0.0f, 1.0f    // top left
+            -0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
+             0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+             0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
+             0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
+            -0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+            -0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
+
+            -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+             0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+             0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+             0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+            -0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
+            -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+
+            -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+            -0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+            -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+            -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+            -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+            -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+
+             0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+             0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+             0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+             0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+             0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+             0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+
+            -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+             0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
+             0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+             0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+            -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+            -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+
+            -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
+             0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+             0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+             0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+            -0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
+            -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
         };
         // clang-format on
 
         unsigned int indices[] = {0, 1, 3, 1, 2, 3};
         glGenVertexArrays(1, &vao);
         glGenBuffers(1, &vbo);
-        glGenBuffers(1, &ebo);
         glBindVertexArray(vao);
 
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
@@ -168,21 +202,31 @@ void App::init()
         glEnableVertexAttribArray(1);
     }
 
-    camera.init(45.f, 0.1f, 1000.f, (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT);
-
-    camera.setPosition(glm::vec3{0.f, 0.f, -3.f});
+    { // init camera
+        const auto fovX = 45.f;
+        const auto zNear = 0.1f;
+        const auto zFar = 1000.f;
+        camera.init(fovX, zNear, zFar, (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT);
+        camera.setPosition(glm::vec3{0.f, 1.f, -3.f});
+        camera.lookAt(glm::vec3{0.f, 0.f, 0.f});
+    }
 
     { // load texture
-        auto imageData =
-            util::loadImage("/home/eliasdaler/work/oglr/assets/images/test_texture.png");
+        auto imageData = util::loadImage("assets/images/test_texture.png");
+        if (!imageData.pixels) {
+            std::cout << "Failed to load image\n";
+            std::exit(1);
+        }
         glCreateTextures(GL_TEXTURE_2D, 1, &texture);
 
         glTextureParameteri(texture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTextureParameteri(texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        // glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        // glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-        glTextureStorage2D(texture, 1, GL_RGBA8, imageData.height, imageData.height);
+        glTextureStorage2D(texture, 1, GL_SRGB8_ALPHA8, imageData.width, imageData.height);
         glTextureSubImage2D(
             texture,
             0,
@@ -194,9 +238,15 @@ void App::init()
             GL_UNSIGNED_BYTE,
             imageData.pixels);
 
+        // glGenerateTextureMipmap(texture);
+
+        // assume that we'll bind texture to texture slot 0 for now
         glUseProgram(shaderProgram);
         glUniform1i(FRAG_TEXTURE_UNIFORM_LOC, 0);
     }
+
+    // initial state
+    glEnable(GL_DEPTH_TEST);
 }
 
 void App::cleanup()
@@ -204,7 +254,6 @@ void App::cleanup()
     glDeleteTextures(1, &texture);
     glDeleteVertexArrays(1, &vao);
     glDeleteBuffers(1, &vbo);
-    glDeleteBuffers(1, &ebo);
     glDeleteProgram(shaderProgram);
 
     SDL_GL_DeleteContext(glContext);
@@ -277,7 +326,8 @@ void App::update(float dt)
 void App::render()
 {
     glClearColor(97.f / 255.f, 120.f / 255.f, 159.f / 255.f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClearDepth(1.f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     {
         glUseProgram(shaderProgram);
@@ -293,8 +343,8 @@ void App::render()
         glBindTextureUnit(0, texture);
 
         glBindVertexArray(vao);
-        // draw rect
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        // draw cube
+        glDrawArrays(GL_TRIANGLES, 0, 36);
     }
 
     SDL_GL_SwapWindow(window);

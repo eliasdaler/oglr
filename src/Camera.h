@@ -17,6 +17,8 @@ public:
     glm::mat4 getView() const;
     glm::mat4 getViewProj() const;
 
+    void lookAt(const glm::vec3& point);
+
 private:
     glm::vec3 position;
     glm::quat heading;

@@ -55,3 +55,10 @@ target_compile_definitions(app
     GLM_FORCE_EXPLICIT_CTOR
     GLM_ENABLE_EXPERIMENTAL
 )
+
+set(GAME_ASSETS_PATH "${CMAKE_CURRENT_SOURCE_DIR}/assets")
+add_custom_command(TARGET app POST_BUILD
+    COMMENT "Symlink assets to $<TARGET_FILE_DIR:app>/assets"
+    COMMAND ${CMAKE_COMMAND} -E create_symlink "${GAME_ASSETS_PATH}" "$<TARGET_FILE_DIR:app>/assets"
+  )
+
