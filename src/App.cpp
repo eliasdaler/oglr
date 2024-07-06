@@ -5,43 +5,10 @@
 
 #include <glad/gl.h>
 
+#include <fstream>
 #include <glm/gtc/type_ptr.hpp>
 
 #include "ImageLoader.h"
-
-namespace
-{
-const char* vertexShaderSource = R"(
-#version 460 core
-layout (location = 0) in vec3 aPos;
-layout (location = 1) in vec2 aUV;
-
-layout (location = 0) uniform mat4 vp;
-layout (location = 1) uniform mat4 model;
-
-layout (location = 0) out vec2 outUV;
-
-void main()
-{
-   gl_Position = vp * model * vec4(aPos.x, aPos.y, aPos.z, 1.0);
-   outUV = aUV;
-}
-)";
-
-const char* fragmentShaderSource = R"(
-#version 460 core
-
-layout (location = 0) in vec2 inUV;
-out vec4 fragColor;
-
-layout (location = 2) uniform sampler2D tex;
-
-void main()
-{
-   fragColor = texture(tex, inUV);
-}
-)";
-}
 
 namespace
 {
@@ -51,6 +18,21 @@ constexpr auto WINDOW_HEIGHT = 960;
 constexpr auto VP_UNIFORM_LOC = 0;
 constexpr auto MODEL_UNIFORM_LOC = 1;
 constexpr auto FRAG_TEXTURE_UNIFORM_LOC = 2;
+
+std::string loadFileToString(const std::filesystem::path& path)
+{
+    // open file
+    std::ifstream f(path);
+    if (!f.good()) {
+        std::cerr << "Failed to open shader file from " << path << std::endl;
+        return {};
+    }
+    // read whole file into string buffer
+    std::stringstream buffer;
+    buffer << f.rdbuf();
+    return buffer.str();
+}
+
 }
 
 void App::start()
@@ -102,7 +84,9 @@ void App::init()
         constexpr int MAX_SHADER_LOG_LENGTH = 512;
         // vertex shader
         unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
+        const auto vertShaderStr = loadFileToString("assets/shaders/basic.vert");
+        const char* vertSource = vertShaderStr.c_str();
+        glShaderSource(vertexShader, 1, &vertSource, NULL);
         glCompileShader(vertexShader);
         // check for shader compile errors
         int success;
@@ -114,7 +98,9 @@ void App::init()
         }
         // fragment shader
         unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
+        const auto fragShaderStr = loadFileToString("assets/shaders/basic.frag");
+        const char* fragSource = fragShaderStr.c_str();
+        glShaderSource(fragmentShader, 1, &fragSource, NULL);
         glCompileShader(fragmentShader);
         // check for shader compile errors
         glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
