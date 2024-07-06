@@ -15,6 +15,7 @@ endif()
 add_subdirectory(third_party)
 
 add_executable(app
+  src/ImageLoader.cpp
   src/Camera.cpp
   src/App.cpp
   src/main.cpp
@@ -43,6 +44,7 @@ endif()
 target_link_libraries(app PUBLIC
   glad::glad
   glm::glm
+  stb::image
 )
 
 # glm

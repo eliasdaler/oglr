@@ -46,6 +46,7 @@ private:
     std::uint32_t vbo{};
     std::uint32_t vao{};
     std::uint32_t ebo{};
+    std::uint32_t texture{};
 
     Transform cubeTransform;
 

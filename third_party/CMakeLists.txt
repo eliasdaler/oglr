@@ -17,3 +17,5 @@ add_library(glad::glad ALIAS glad)
 # glm
 add_subdirectory(glm)
 
+# stb
+add_subdirectory(stb)

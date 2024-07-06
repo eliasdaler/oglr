@@ -7,27 +7,38 @@
 
 #include <glm/gtc/type_ptr.hpp>
 
+#include "ImageLoader.h"
+
 namespace
 {
 const char* vertexShaderSource = R"(
 #version 460 core
 layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec2 aUV;
 
 layout (location = 0) uniform mat4 vp;
 layout (location = 1) uniform mat4 model;
 
+layout (location = 0) out vec2 outUV;
+
 void main()
 {
    gl_Position = vp * model * vec4(aPos.x, aPos.y, aPos.z, 1.0);
+   outUV = aUV;
 }
 )";
 
 const char* fragmentShaderSource = R"(
 #version 460 core
-out vec4 FragColor;
+
+layout (location = 0) in vec2 inUV;
+out vec4 fragColor;
+
+layout (location = 2) uniform sampler2D tex;
+
 void main()
 {
-   FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
+   fragColor = texture(tex, inUV);
 }
 )";
 }
@@ -39,6 +50,7 @@ constexpr auto WINDOW_HEIGHT = 960;
 
 constexpr auto VP_UNIFORM_LOC = 0;
 constexpr auto MODEL_UNIFORM_LOC = 1;
+constexpr auto FRAG_TEXTURE_UNIFORM_LOC = 2;
 }
 
 void App::start()
@@ -126,20 +138,16 @@ void App::init()
     }
 
     {
+        // clang-format off
         float vertices[] = {
-            0.5f,
-            0.5f,
-            0.0f, // top right
-            0.5f,
-            -0.5f,
-            0.0f, // bottom right
-            -0.5f,
-            -0.5f,
-            0.0f, // bottom left
-            -0.5f,
-            0.5f,
-            0.0f // top left
+            // positions          // texture coords
+             0.5f,  0.5f, 0.0f,   1.0f, 1.0f,   // top right
+             0.5f, -0.5f, 0.0f,   1.0f, 0.0f,   // bottom right
+            -0.5f, -0.5f, 0.0f,   0.0f, 0.0f,   // bottom left
+            -0.5f,  0.5f, 0.0f,   0.0f, 1.0f    // top left
         };
+        // clang-format on
+
         unsigned int indices[] = {0, 1, 3, 1, 2, 3};
         glGenVertexArrays(1, &vao);
         glGenBuffers(1, &vbo);
@@ -152,17 +160,48 @@ void App::init()
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(0);
+
+        glVertexAttribPointer(
+            1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(1);
     }
 
     camera.init(45.f, 0.1f, 1000.f, (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT);
 
     camera.setPosition(glm::vec3{0.f, 0.f, -3.f});
+
+    { // load texture
+        auto imageData =
+            util::loadImage("/home/eliasdaler/work/oglr/assets/images/test_texture.png");
+        glCreateTextures(GL_TEXTURE_2D, 1, &texture);
+
+        glTextureParameteri(texture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+        glTextureStorage2D(texture, 1, GL_RGBA8, imageData.height, imageData.height);
+        glTextureSubImage2D(
+            texture,
+            0,
+            0,
+            0,
+            imageData.width,
+            imageData.height,
+            GL_RGBA,
+            GL_UNSIGNED_BYTE,
+            imageData.pixels);
+
+        glUseProgram(shaderProgram);
+        glUniform1i(FRAG_TEXTURE_UNIFORM_LOC, 0);
+    }
 }
 
 void App::cleanup()
 {
+    glDeleteTextures(1, &texture);
     glDeleteVertexArrays(1, &vao);
     glDeleteBuffers(1, &vbo);
     glDeleteBuffers(1, &ebo);
@@ -250,6 +289,8 @@ void App::render()
         // set cube transform
         const auto tm = cubeTransform.asMatrix();
         glUniformMatrix4fv(MODEL_UNIFORM_LOC, 1, GL_FALSE, glm::value_ptr(tm));
+
+        glBindTextureUnit(0, texture);
 
         glBindVertexArray(vao);
         // draw rect
