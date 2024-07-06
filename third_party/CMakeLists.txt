@@ -13,3 +13,7 @@ set_target_properties(glad PROPERTIES
   POSITION_INDEPENDENT_CODE ON
 )
 add_library(glad::glad ALIAS glad)
+
+# glm
+add_subdirectory(glm)
+

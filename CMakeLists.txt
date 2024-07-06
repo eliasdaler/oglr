@@ -15,6 +15,7 @@ endif()
 add_subdirectory(third_party)
 
 add_executable(app
+  src/Camera.cpp
   src/App.cpp
   src/main.cpp
 )
@@ -41,4 +42,14 @@ endif()
 # other libs
 target_link_libraries(app PUBLIC
   glad::glad
+  glm::glm
+)
+
+# glm
+target_compile_definitions(app
+  PUBLIC
+    GLM_FORCE_CTOR_INIT
+    GLM_FORCE_XYZW_ONLY
+    GLM_FORCE_EXPLICIT_CTOR
+    GLM_ENABLE_EXPERIMENTAL
 )
