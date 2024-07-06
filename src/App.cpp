@@ -19,7 +19,7 @@ constexpr auto VP_UNIFORM_LOC = 0;
 constexpr auto MODEL_UNIFORM_LOC = 1;
 constexpr auto FRAG_TEXTURE_UNIFORM_LOC = 2;
 
-std::string loadFileToString(const std::filesystem::path& path)
+std::string readFileToString(const std::filesystem::path& path)
 {
     // open file
     std::ifstream f(path);
@@ -31,6 +31,28 @@ std::string loadFileToString(const std::filesystem::path& path)
     std::stringstream buffer;
     buffer << f.rdbuf();
     return buffer.str();
+}
+
+GLuint compileShader(const std::filesystem::path& path, GLenum shaderType)
+{
+    GLint shader = glCreateShader(shaderType);
+    const auto sourceStr = readFileToString(path);
+    const char* sourceCStr = sourceStr.c_str();
+    glShaderSource(shader, 1, &sourceCStr, NULL);
+    glCompileShader(shader);
+
+    // check for shader compile errors
+    int success{};
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        GLint logLength{};
+        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLength);
+        std::string log(logLength + 1, '\0');
+        glGetShaderInfoLog(shader, logLength, NULL, &log[0]);
+        std::cout << "Failed to compile shader:" << log << std::endl;
+        return 0;
+    }
+    return shader;
 }
 
 }
@@ -65,6 +87,7 @@ void App::init()
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+
     glContext = SDL_GL_CreateContext(window);
     SDL_GL_MakeCurrent(window, glContext);
 
@@ -74,53 +97,42 @@ void App::init()
     // glad
     int gl_version = gladLoaderLoadGL();
     if (!gl_version) {
-        printf("Unable to load GL.\n");
+        std::cout << "Unable to load GL.\n";
         std::exit(1);
     }
 
     glEnable(GL_FRAMEBUFFER_SRGB);
 
-    { // build shaders
-        constexpr int MAX_SHADER_LOG_LENGTH = 512;
-        // vertex shader
-        unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
-        const auto vertShaderStr = loadFileToString("assets/shaders/basic.vert");
-        const char* vertSource = vertShaderStr.c_str();
-        glShaderSource(vertexShader, 1, &vertSource, NULL);
-        glCompileShader(vertexShader);
-        // check for shader compile errors
-        int success;
-        char infoLog[512];
-        glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-        if (!success) {
-            glGetShaderInfoLog(vertexShader, MAX_SHADER_LOG_LENGTH, NULL, infoLog);
-            std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
+    { // shaders
+        const auto vertexShader = compileShader("assets/shaders/basic.vert", GL_VERTEX_SHADER);
+        if (vertexShader == 0) {
+            std::exit(1);
         }
-        // fragment shader
-        unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-        const auto fragShaderStr = loadFileToString("assets/shaders/basic.frag");
-        const char* fragSource = fragShaderStr.c_str();
-        glShaderSource(fragmentShader, 1, &fragSource, NULL);
-        glCompileShader(fragmentShader);
-        // check for shader compile errors
-        glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
-        if (!success) {
-            glGetShaderInfoLog(fragmentShader, MAX_SHADER_LOG_LENGTH, NULL, infoLog);
-            std::cout << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
+
+        const auto fragShader = compileShader("assets/shaders/basic.frag", GL_FRAGMENT_SHADER);
+        if (fragShader == 0) {
+            std::exit(1);
         }
-        // link shaders
+
+        // link
         shaderProgram = glCreateProgram();
         glAttachShader(shaderProgram, vertexShader);
-        glAttachShader(shaderProgram, fragmentShader);
+        glAttachShader(shaderProgram, fragShader);
         glLinkProgram(shaderProgram);
         // check for linking errors
+        int success{};
         glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
         if (!success) {
-            glGetProgramInfoLog(shaderProgram, MAX_SHADER_LOG_LENGTH, NULL, infoLog);
-            std::cout << "linking failed: " << infoLog << std::endl;
+            GLint logLength;
+            glGetShaderiv(shaderProgram, GL_INFO_LOG_LENGTH, &logLength);
+            std::string log(logLength + 1, '\0');
+            glGetProgramInfoLog(shaderProgram, logLength, NULL, &log[0]);
+            std::cout << "Shader linking failed: " << log << std::endl;
+            std::exit(1);
         }
+
         glDeleteShader(vertexShader);
-        glDeleteShader(fragmentShader);
+        glDeleteShader(fragShader);
     }
 
     { // make cube
@@ -170,15 +182,12 @@ void App::init()
         };
         // clang-format on
 
-        unsigned int indices[] = {0, 1, 3, 1, 2, 3};
         glGenVertexArrays(1, &vao);
         glGenBuffers(1, &vbo);
         glBindVertexArray(vao);
 
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(0);

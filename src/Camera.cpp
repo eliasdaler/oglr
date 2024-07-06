@@ -6,6 +6,7 @@
 
 namespace
 {
+// TODO: move to globals
 const auto GLOBAL_UP_DIR = glm::vec3{0.f, 1.f, 0.f};
 const auto GLOBAL_FRONT_DIR = glm::vec3{0.f, 0.f, 1.f};
 }
@@ -33,8 +34,6 @@ void Camera::lookAt(const glm::vec3& point)
 
 glm::mat4 Camera::getView() const
 {
-    // TODO: move to globals
-
     const auto target = position + heading * GLOBAL_FRONT_DIR;
     return glm::lookAt(position, target, GLOBAL_UP_DIR);
 }
