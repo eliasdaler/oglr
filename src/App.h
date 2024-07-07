@@ -6,6 +6,8 @@
 
 #include "Camera.h"
 
+#include <random>
+
 struct Transform {
     glm::vec3 position{};
     glm::quat heading{glm::identity<glm::quat>()};
@@ -42,14 +44,17 @@ private:
     float frameTime{0.f};
     float avgFPS{0.f};
 
+    std::random_device randomDevice;
+    std::mt19937 rng;
+    std::uniform_int_distribution<int> dist{1, 10};
+
     std::uint32_t shaderProgram{};
     std::uint32_t vao{}; // empty vao
     std::uint32_t texture{};
 
     std::uint32_t verticesBuffer{};
 
-    Transform cubeTransform;
-    Transform cubeTransform2;
+    std::vector<Transform> transforms;
 
     Camera camera;
 };

@@ -110,6 +110,19 @@ void App::start()
 
 void App::init()
 {
+    rng = std::mt19937{randomDevice()};
+
+    auto numCubesToGenerate = dist(rng);
+    const auto numCubesSide = 4.f;
+    const auto cubeSpacing = 2.25f;
+    for (int i = 0; i < numCubesToGenerate; ++i) {
+        Transform transform;
+        transform.position.x = (i / numCubesSide) * cubeSpacing - 2.f;
+        transform.position.y = (i % (int)numCubesSide) * cubeSpacing;
+        std::cout << transform.position.x << " " << transform.position.y << std::endl;
+        transforms.push_back(transform);
+    }
+
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) < 0) {
         printf("SDL could not initialize. SDL Error: %s\n", SDL_GetError());
         std::exit(1);
@@ -258,13 +271,9 @@ void App::init()
         const auto zNear = 0.1f;
         const auto zFar = 1000.f;
         camera.init(fovX, zNear, zFar, (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT);
-        camera.setPosition(glm::vec3{0.f, 1.f, -3.5f});
-        camera.lookAt(glm::vec3{0.f, 0.f, 0.f});
+        camera.setPosition(glm::vec3{-5.f, 0.f, -12.5f});
+        camera.lookAt(glm::vec3{0.f, 2.f, 0.f});
     }
-
-    cubeTransform2.position.x += 1.f;
-    cubeTransform2.position.y += 1.f;
-    cubeTransform2.scale = glm::vec3{0.25f};
 }
 
 void App::cleanup()
@@ -338,10 +347,9 @@ void App::update(float dt)
 {
     // rotate cube
     static const auto rotationSpeed = glm::radians(45.f);
-    cubeTransform.heading *= glm::angleAxis(rotationSpeed * dt, glm::vec3{0.f, 1.f, 0.f});
-
-    cubeTransform2.heading *=
-        glm::angleAxis(rotationSpeed * dt, glm::normalize(glm::vec3{-1.f, 1.f, 0.f}));
+    for (auto& cubeTransform : transforms) {
+        cubeTransform.heading *= glm::angleAxis(rotationSpeed * dt, glm::vec3{0.f, 1.f, 0.f});
+    }
 }
 
 void App::render()
@@ -365,17 +373,13 @@ void App::render()
 
         glUseProgram(shaderProgram);
 
-        // draw first cube
-        auto tm = cubeTransform.asMatrix();
-        glProgramUniformMatrix4fv(
-            shaderProgram, MODEL_UNIFORM_LOC, 1, GL_FALSE, glm::value_ptr(tm));
-        glDrawArrays(GL_TRIANGLES, 0, 36);
-
-        // draw second cube
-        tm = cubeTransform2.asMatrix();
-        glProgramUniformMatrix4fv(
-            shaderProgram, MODEL_UNIFORM_LOC, 1, GL_FALSE, glm::value_ptr(tm));
-        glDrawArrays(GL_TRIANGLES, 0, 36);
+        // draw cubes
+        for (const auto& cubeTransform : transforms) {
+            const auto tm = cubeTransform.asMatrix();
+            glProgramUniformMatrix4fv(
+                shaderProgram, MODEL_UNIFORM_LOC, 1, GL_FALSE, glm::value_ptr(tm));
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+        }
     }
 
     SDL_GL_SwapWindow(window);
