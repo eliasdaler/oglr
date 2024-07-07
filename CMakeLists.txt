@@ -15,6 +15,7 @@ endif()
 add_subdirectory(third_party)
 
 add_executable(app
+  src/GLDebugCallback.cpp
   src/ImageLoader.cpp
   src/Camera.cpp
   src/App.cpp

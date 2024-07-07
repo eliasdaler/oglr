@@ -8,6 +8,7 @@
 #include <fstream>
 #include <glm/gtc/type_ptr.hpp>
 
+#include "GLDebugCallback.h"
 #include "ImageLoader.h"
 
 namespace
@@ -18,6 +19,11 @@ constexpr auto WINDOW_HEIGHT = 960;
 constexpr auto VP_UNIFORM_LOC = 0;
 constexpr auto MODEL_UNIFORM_LOC = 1;
 constexpr auto FRAG_TEXTURE_UNIFORM_LOC = 2;
+
+void setDebugLabel(GLenum identifier, GLuint name, std::string_view label)
+{
+    glObjectLabel(identifier, name, label.size(), label.data());
+}
 
 std::string readFileToString(const std::filesystem::path& path)
 {
@@ -36,9 +42,11 @@ std::string readFileToString(const std::filesystem::path& path)
 GLuint compileShader(const std::filesystem::path& path, GLenum shaderType)
 {
     GLint shader = glCreateShader(shaderType);
+
     const auto sourceStr = readFileToString(path);
     const char* sourceCStr = sourceStr.c_str();
     glShaderSource(shader, 1, &sourceCStr, NULL);
+
     glCompileShader(shader);
 
     // check for shader compile errors
@@ -52,7 +60,43 @@ GLuint compileShader(const std::filesystem::path& path, GLenum shaderType)
         std::cout << "Failed to compile shader:" << log << std::endl;
         return 0;
     }
+    setDebugLabel(GL_SHADER, shader, path.string());
     return shader;
+}
+
+// will add ability to pass params later
+GLuint loadTextureFromFile(const std::filesystem::path& path)
+{
+    const auto imageData = util::loadImage(path);
+    if (!imageData.pixels) {
+        std::cout << "Failed to load image from " << path << "\n";
+        return 0;
+    }
+
+    GLuint texture;
+    glCreateTextures(GL_TEXTURE_2D, 1, &texture);
+
+    glTextureParameteri(texture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    // glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    // glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glTextureStorage2D(texture, 1, GL_SRGB8_ALPHA8, imageData.width, imageData.height);
+    glTextureSubImage2D(
+        texture,
+        0,
+        0,
+        0,
+        imageData.width,
+        imageData.height,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        imageData.pixels);
+
+    return texture;
 }
 
 }
@@ -101,6 +145,7 @@ void App::init()
         std::exit(1);
     }
 
+    gl::enableDebugCallback();
     glEnable(GL_FRAMEBUFFER_SRGB);
 
     { // shaders
@@ -114,11 +159,14 @@ void App::init()
             std::exit(1);
         }
 
-        // link
         shaderProgram = glCreateProgram();
+        setDebugLabel(GL_PROGRAM, shaderProgram, "shader");
+
+        // link
         glAttachShader(shaderProgram, vertexShader);
         glAttachShader(shaderProgram, fragShader);
         glLinkProgram(shaderProgram);
+
         // check for linking errors
         int success{};
         glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
@@ -135,67 +183,76 @@ void App::init()
         glDeleteShader(fragShader);
     }
 
+    // we still need an empty VAO even for vertex pulling
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
+
     { // make cube
-        // clang-format off
-        float vertices[] = {
-            -0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
-             0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-             0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-             0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-            -0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-            -0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
-
-            -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-             0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-             0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-             0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-            -0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
-            -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-
-            -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-            -0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-            -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-            -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-            -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-            -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-
-             0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-             0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-             0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-             0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-             0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-             0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-
-            -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-             0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
-             0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-             0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-            -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-            -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-
-            -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-             0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-             0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-             0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-            -0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
-            -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
+        struct Vertex {
+            glm::vec4 position;
+            glm::vec2 uv;
+            glm::vec2 _padding;
         };
-        // clang-format on
+        std::vector<Vertex> vertices2{
+            {glm::vec4{-0.5f, -0.5f, -0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
+            {glm::vec4{0.5f, -0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 0.0f}},
+            {glm::vec4{0.5f, 0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
+            {glm::vec4{0.5f, 0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
+            {glm::vec4{-0.5f, 0.5f, -0.5f, 0.f}, glm::vec2{1.0f, 1.0f}},
+            {glm::vec4{-0.5f, -0.5f, -0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
 
-        glGenVertexArrays(1, &vao);
-        glGenBuffers(1, &vbo);
-        glBindVertexArray(vao);
+            {glm::vec4{-0.5f, -0.5f, 0.5f, 0.f}, glm::vec2{0.0f, 0.0f}},
+            {glm::vec4{0.5f, -0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
+            {glm::vec4{0.5f, 0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 1.0f}},
+            {glm::vec4{0.5f, 0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 1.0f}},
+            {glm::vec4{-0.5f, 0.5f, 0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
+            {glm::vec4{-0.5f, -0.5f, 0.5f, 0.f}, glm::vec2{0.0f, 0.0f}},
 
-        glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+            {glm::vec4{-0.5f, 0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
+            {glm::vec4{-0.5f, 0.5f, -0.5f, 0.f}, glm::vec2{1.0f, 1.0f}},
+            {glm::vec4{-0.5f, -0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
+            {glm::vec4{-0.5f, -0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
+            {glm::vec4{-0.5f, -0.5f, 0.5f, 0.f}, glm::vec2{0.0f, 0.0f}},
+            {glm::vec4{-0.5f, 0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
 
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-        glEnableVertexAttribArray(0);
+            {glm::vec4{0.5f, 0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
+            {glm::vec4{0.5f, 0.5f, -0.5f, 0.f}, glm::vec2{1.0f, 1.0f}},
+            {glm::vec4{0.5f, -0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
+            {glm::vec4{0.5f, -0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
+            {glm::vec4{0.5f, -0.5f, 0.5f, 0.f}, glm::vec2{0.0f, 0.0f}},
+            {glm::vec4{0.5f, 0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
 
-        glVertexAttribPointer(
-            1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-        glEnableVertexAttribArray(1);
+            {glm::vec4{-0.5f, -0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
+            {glm::vec4{0.5f, -0.5f, -0.5f, 0.f}, glm::vec2{1.0f, 1.0f}},
+            {glm::vec4{0.5f, -0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
+            {glm::vec4{0.5f, -0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
+            {glm::vec4{-0.5f, -0.5f, 0.5f, 0.f}, glm::vec2{0.0f, 0.0f}},
+            {glm::vec4{-0.5f, -0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
+
+            {glm::vec4{-0.5f, 0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
+            {glm::vec4{0.5f, 0.5f, -0.5f, 0.f}, glm::vec2{1.0f, 1.0f}},
+            {glm::vec4{0.5f, 0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
+            {glm::vec4{0.5f, 0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
+            {glm::vec4{-0.5f, 0.5f, 0.5f, 0.f}, glm::vec2{0.0f, 0.0f}},
+            {glm::vec4{-0.5f, 0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
+        };
+
+        glCreateBuffers(1, &verticesBuffer);
+        setDebugLabel(GL_BUFFER, verticesBuffer, "vertices");
+        glNamedBufferStorage(
+            verticesBuffer,
+            sizeof(Vertex) * vertices2.size(),
+            vertices2.data(),
+            GL_DYNAMIC_STORAGE_BIT);
     }
+
+    texture = loadTextureFromFile("assets/images/test_texture.png");
+    if (texture == 0) {
+        std::exit(1);
+    }
+
+    // initial state
+    glEnable(GL_DEPTH_TEST);
 
     { // init camera
         const auto fovX = 45.f;
@@ -205,50 +262,13 @@ void App::init()
         camera.setPosition(glm::vec3{0.f, 1.f, -3.f});
         camera.lookAt(glm::vec3{0.f, 0.f, 0.f});
     }
-
-    { // load texture
-        auto imageData = util::loadImage("assets/images/test_texture.png");
-        if (!imageData.pixels) {
-            std::cout << "Failed to load image\n";
-            std::exit(1);
-        }
-        glCreateTextures(GL_TEXTURE_2D, 1, &texture);
-
-        glTextureParameteri(texture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTextureParameteri(texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        // glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        // glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-        glTextureStorage2D(texture, 1, GL_SRGB8_ALPHA8, imageData.width, imageData.height);
-        glTextureSubImage2D(
-            texture,
-            0,
-            0,
-            0,
-            imageData.width,
-            imageData.height,
-            GL_RGBA,
-            GL_UNSIGNED_BYTE,
-            imageData.pixels);
-
-        // glGenerateTextureMipmap(texture);
-
-        // assume that we'll bind texture to texture slot 0 for now
-        glUseProgram(shaderProgram);
-        glUniform1i(FRAG_TEXTURE_UNIFORM_LOC, 0);
-    }
-
-    // initial state
-    glEnable(GL_DEPTH_TEST);
 }
 
 void App::cleanup()
 {
+    glDeleteBuffers(1, &verticesBuffer);
     glDeleteTextures(1, &texture);
     glDeleteVertexArrays(1, &vao);
-    glDeleteBuffers(1, &vbo);
     glDeleteProgram(shaderProgram);
 
     SDL_GL_DeleteContext(glContext);
@@ -324,8 +344,12 @@ void App::render()
     glClearDepth(1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    glBindVertexArray(vao);
     {
         glUseProgram(shaderProgram);
+
+        // vertices
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, verticesBuffer);
 
         // update camera
         const auto vp = camera.getViewProj();
@@ -335,9 +359,10 @@ void App::render()
         const auto tm = cubeTransform.asMatrix();
         glUniformMatrix4fv(MODEL_UNIFORM_LOC, 1, GL_FALSE, glm::value_ptr(tm));
 
+        // set texture
         glBindTextureUnit(0, texture);
+        glUniform1i(FRAG_TEXTURE_UNIFORM_LOC, 0);
 
-        glBindVertexArray(vao);
         // draw cube
         glDrawArrays(GL_TRIANGLES, 0, 36);
     }
