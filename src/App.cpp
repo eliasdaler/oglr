@@ -185,7 +185,6 @@ void App::init()
 
     // we still need an empty VAO even for vertex pulling
     glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
 
     { // make cube
         struct Vertex {
@@ -346,24 +345,24 @@ void App::render()
 
     glBindVertexArray(vao);
     {
-        glUseProgram(shaderProgram);
-
         // vertices
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, verticesBuffer);
 
         // update camera
         const auto vp = camera.getViewProj();
-        glUniformMatrix4fv(VP_UNIFORM_LOC, 1, GL_FALSE, glm::value_ptr(vp));
+        glProgramUniformMatrix4fv(shaderProgram, VP_UNIFORM_LOC, 1, GL_FALSE, glm::value_ptr(vp));
 
         // set cube transform
         const auto tm = cubeTransform.asMatrix();
-        glUniformMatrix4fv(MODEL_UNIFORM_LOC, 1, GL_FALSE, glm::value_ptr(tm));
+        glProgramUniformMatrix4fv(
+            shaderProgram, MODEL_UNIFORM_LOC, 1, GL_FALSE, glm::value_ptr(tm));
 
         // set texture
         glBindTextureUnit(0, texture);
-        glUniform1i(FRAG_TEXTURE_UNIFORM_LOC, 0);
+        glProgramUniform1i(shaderProgram, FRAG_TEXTURE_UNIFORM_LOC, 0);
 
         // draw cube
+        glUseProgram(shaderProgram);
         glDrawArrays(GL_TRIANGLES, 0, 36);
     }
 
