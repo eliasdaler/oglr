@@ -258,9 +258,13 @@ void App::init()
         const auto zNear = 0.1f;
         const auto zFar = 1000.f;
         camera.init(fovX, zNear, zFar, (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT);
-        camera.setPosition(glm::vec3{0.f, 1.f, -3.f});
+        camera.setPosition(glm::vec3{0.f, 1.f, -3.5f});
         camera.lookAt(glm::vec3{0.f, 0.f, 0.f});
     }
+
+    cubeTransform2.position.x += 1.f;
+    cubeTransform2.position.y += 1.f;
+    cubeTransform2.scale = glm::vec3{0.25f};
 }
 
 void App::cleanup()
@@ -335,6 +339,9 @@ void App::update(float dt)
     // rotate cube
     static const auto rotationSpeed = glm::radians(45.f);
     cubeTransform.heading *= glm::angleAxis(rotationSpeed * dt, glm::vec3{0.f, 1.f, 0.f});
+
+    cubeTransform2.heading *=
+        glm::angleAxis(rotationSpeed * dt, glm::normalize(glm::vec3{-1.f, 1.f, 0.f}));
 }
 
 void App::render()
@@ -352,17 +359,22 @@ void App::render()
         const auto vp = camera.getViewProj();
         glProgramUniformMatrix4fv(shaderProgram, VP_UNIFORM_LOC, 1, GL_FALSE, glm::value_ptr(vp));
 
-        // set cube transform
-        const auto tm = cubeTransform.asMatrix();
-        glProgramUniformMatrix4fv(
-            shaderProgram, MODEL_UNIFORM_LOC, 1, GL_FALSE, glm::value_ptr(tm));
-
         // set texture
         glBindTextureUnit(0, texture);
         glProgramUniform1i(shaderProgram, FRAG_TEXTURE_UNIFORM_LOC, 0);
 
-        // draw cube
         glUseProgram(shaderProgram);
+
+        // draw first cube
+        auto tm = cubeTransform.asMatrix();
+        glProgramUniformMatrix4fv(
+            shaderProgram, MODEL_UNIFORM_LOC, 1, GL_FALSE, glm::value_ptr(tm));
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+
+        // draw second cube
+        tm = cubeTransform2.asMatrix();
+        glProgramUniformMatrix4fv(
+            shaderProgram, MODEL_UNIFORM_LOC, 1, GL_FALSE, glm::value_ptr(tm));
         glDrawArrays(GL_TRIANGLES, 0, 36);
     }
 

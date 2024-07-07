@@ -49,6 +49,7 @@ private:
     std::uint32_t verticesBuffer{};
 
     Transform cubeTransform;
+    Transform cubeTransform2;
 
     Camera camera;
 };
