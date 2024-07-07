@@ -47,6 +47,7 @@ private:
     std::random_device randomDevice;
     std::mt19937 rng;
     std::uniform_int_distribution<int> dist{1, 10};
+    std::uniform_real_distribution<float> dist2{-10.f, 10.f};
 
     std::uint32_t shaderProgram{};
     std::uint32_t vao{}; // empty vao
@@ -57,4 +58,7 @@ private:
     std::vector<Transform> transforms;
 
     Camera camera;
+
+    float timer{0.f};
+    float timeToSpawnNewCube{0.5f};
 };

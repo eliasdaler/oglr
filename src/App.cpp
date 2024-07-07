@@ -79,10 +79,10 @@ GLuint loadTextureFromFile(const std::filesystem::path& path)
     glTextureParameteri(texture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTextureParameteri(texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    // glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    // glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    // glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     glTextureStorage2D(texture, 1, GL_SRGB8_ALPHA8, imageData.width, imageData.height);
     glTextureSubImage2D(
@@ -95,6 +95,8 @@ GLuint loadTextureFromFile(const std::filesystem::path& path)
         GL_RGBA,
         GL_UNSIGNED_BYTE,
         imageData.pixels);
+
+    glGenerateTextureMipmap(texture);
 
     return texture;
 }
@@ -119,7 +121,6 @@ void App::init()
         Transform transform;
         transform.position.x = (i / numCubesSide) * cubeSpacing - 2.f;
         transform.position.y = (i % (int)numCubesSide) * cubeSpacing;
-        std::cout << transform.position.x << " " << transform.position.y << std::endl;
         transforms.push_back(transform);
     }
 
@@ -271,7 +272,7 @@ void App::init()
         const auto zNear = 0.1f;
         const auto zFar = 1000.f;
         camera.init(fovX, zNear, zFar, (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT);
-        camera.setPosition(glm::vec3{-5.f, 0.f, -12.5f});
+        camera.setPosition(glm::vec3{-5.f, 0.f, -50.0f});
         camera.lookAt(glm::vec3{0.f, 2.f, 0.f});
     }
 }
@@ -349,6 +350,15 @@ void App::update(float dt)
     static const auto rotationSpeed = glm::radians(45.f);
     for (auto& cubeTransform : transforms) {
         cubeTransform.heading *= glm::angleAxis(rotationSpeed * dt, glm::vec3{0.f, 1.f, 0.f});
+    }
+
+    timer += dt;
+    if (timer >= timeToSpawnNewCube) {
+        timer = 0.f;
+        Transform transform;
+        transform.position.x = dist2(rng);
+        transform.position.y = dist2(rng);
+        transforms.push_back(transform);
     }
 }
 
