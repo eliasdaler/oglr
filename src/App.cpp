@@ -18,8 +18,9 @@ constexpr auto WINDOW_HEIGHT = 960;
 
 constexpr auto FRAG_TEXTURE_UNIFORM_LOC = 1;
 
-constexpr auto SCENE_DATA_BINDING = 0;
-constexpr auto VERTEX_DATA_BINDING = 1;
+constexpr auto GLOBAL_SCENE_DATA_BINDING = 0;
+constexpr auto PER_OBJECT_DATA_BINDING = 1;
+constexpr auto VERTEX_DATA_BINDING = 2;
 
 void setDebugLabel(GLenum identifier, GLuint name, std::string_view label)
 {
@@ -221,8 +222,9 @@ void App::init()
     }
 
     { // allocate scene data buffer
+        globalSceneDataSize = getUBOArrayElementSize(sizeof(GlobalSceneData), uboAlignment);
         perObjectDataElementSize = getUBOArrayElementSize(sizeof(PerObjectData), uboAlignment);
-        allocatedBufferSize = perObjectDataElementSize * 100;
+        allocatedBufferSize = globalSceneDataSize + perObjectDataElementSize * 100;
         sceneDataBuffer = allocateBuffer(allocatedBufferSize, "sceneData");
     }
 
@@ -411,13 +413,20 @@ void App::render()
         glBindTextureUnit(0, texture);
         glProgramUniform1i(shaderProgram, FRAG_TEXTURE_UNIFORM_LOC, 0);
 
+        glBindBufferRange(
+            GL_UNIFORM_BUFFER,
+            GLOBAL_SCENE_DATA_BINDING,
+            sceneDataBuffer,
+            0,
+            sizeof(GlobalSceneData));
+
         // draw cubes
         for (std::size_t i = 0; i < transforms.size(); ++i) {
             glBindBufferRange(
                 GL_UNIFORM_BUFFER,
-                SCENE_DATA_BINDING,
+                PER_OBJECT_DATA_BINDING,
                 sceneDataBuffer,
-                i * perObjectDataElementSize,
+                globalSceneDataSize + i * perObjectDataElementSize,
                 sizeof(PerObjectData));
             glDrawArrays(GL_TRIANGLES, 0, 36);
         }
@@ -432,14 +441,22 @@ void App::uploadSceneData()
     const auto projection = camera.getProjection();
     const auto view = camera.getView();
 
-    const auto sceneDataSize = perObjectDataElementSize * transforms.size();
+    const auto sceneDataSize = globalSceneDataSize + perObjectDataElementSize * transforms.size();
     sceneData.resize(sceneDataSize);
 
     int currentOffset = 0;
+
+    // global scene data
+    const auto d = GlobalSceneData{
+        .projection = projection,
+        .view = view,
+    };
+    std::memcpy(sceneData.data() + currentOffset, &d, sizeof(GlobalSceneData));
+    currentOffset += globalSceneDataSize;
+
+    // per object data
     for (const auto& t : transforms) {
         const auto d = PerObjectData{
-            .projection = projection,
-            .view = view,
             .model = t.asMatrix(),
         };
         std::memcpy(sceneData.data() + currentOffset, &d, sizeof(PerObjectData));

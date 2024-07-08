@@ -63,15 +63,18 @@ private:
     float timer{0.f};
     float timeToSpawnNewCube{0.5f};
 
-    struct PerObjectData {
+    struct GlobalSceneData {
         glm::mat4 projection;
         glm::mat4 view;
+    };
+    struct PerObjectData {
         glm::mat4 model;
     };
     std::uint32_t sceneDataBuffer{};
     std::uint32_t allocatedBufferSize{0};
 
     int uboAlignment{4};
+    int globalSceneDataSize{};
     int perObjectDataElementSize{};
     std::vector<std::uint8_t> sceneData;
 };
