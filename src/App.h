@@ -34,6 +34,7 @@ private:
     void cleanup();
     void run();
     void update(float dt);
+    void uploadSceneData();
     void render();
 
     SDL_Window* window{nullptr};
@@ -62,9 +63,15 @@ private:
     float timer{0.f};
     float timeToSpawnNewCube{0.5f};
 
-    struct SceneData {
+    struct PerObjectData {
         glm::mat4 projection;
         glm::mat4 view;
+        glm::mat4 model;
     };
     std::uint32_t sceneDataBuffer{};
+    std::uint32_t allocatedBufferSize{0};
+
+    int uboAlignment{4};
+    int perObjectDataElementSize{};
+    std::vector<std::uint8_t> sceneData;
 };

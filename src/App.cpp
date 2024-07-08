@@ -16,7 +16,6 @@ namespace
 constexpr auto WINDOW_WIDTH = 1280;
 constexpr auto WINDOW_HEIGHT = 960;
 
-constexpr auto MODEL_UNIFORM_LOC = 0;
 constexpr auto FRAG_TEXTURE_UNIFORM_LOC = 1;
 
 constexpr auto SCENE_DATA_BINDING = 0;
@@ -103,6 +102,26 @@ GLuint loadTextureFromFile(const std::filesystem::path& path)
     return texture;
 }
 
+GLuint allocateBuffer(std::size_t size, const char* debugName)
+{
+    GLuint buffer;
+    glCreateBuffers(1, &buffer);
+    setDebugLabel(GL_BUFFER, buffer, "sceneData");
+    glNamedBufferStorage(buffer, (GLsizeiptr)size, nullptr, GL_DYNAMIC_STORAGE_BIT);
+    return buffer;
+}
+
+int getUBOArrayElementSize(std::size_t elementSize, int uboAlignment)
+{
+    if (elementSize < uboAlignment) {
+        return uboAlignment;
+    }
+    if (elementSize % uboAlignment == 0) {
+        return elementSize;
+    }
+    return ((elementSize / uboAlignment) + 1) * uboAlignment;
+}
+
 }
 
 void App::start()
@@ -164,6 +183,8 @@ void App::init()
     gl::enableDebugCallback();
     glEnable(GL_FRAMEBUFFER_SRGB);
 
+    glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &uboAlignment);
+
     { // shaders
         const auto vertexShader = compileShader("assets/shaders/basic.vert", GL_VERTEX_SHADER);
         if (vertexShader == 0) {
@@ -199,10 +220,10 @@ void App::init()
         glDeleteShader(fragShader);
     }
 
-    {
-        glCreateBuffers(1, &sceneDataBuffer);
-        setDebugLabel(GL_BUFFER, sceneDataBuffer, "sceneData");
-        glNamedBufferStorage(sceneDataBuffer, sizeof(SceneData), nullptr, GL_DYNAMIC_STORAGE_BIT);
+    { // allocate scene data buffer
+        perObjectDataElementSize = getUBOArrayElementSize(sizeof(PerObjectData), uboAlignment);
+        allocatedBufferSize = perObjectDataElementSize * 100;
+        sceneDataBuffer = allocateBuffer(allocatedBufferSize, "sceneData");
     }
 
     // we still need an empty VAO even for vertex pulling
@@ -377,33 +398,65 @@ void App::render()
     glClearDepth(1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // update scene daa
-    const auto sceneData = SceneData{
-        .projection = camera.getProjection(),
-        .view = camera.getView(),
-    };
-    glNamedBufferSubData(sceneDataBuffer, 0, sizeof(SceneData), &sceneData);
+    uploadSceneData();
 
     glBindVertexArray(vao);
     {
+        glUseProgram(shaderProgram);
+
         // buffers
-        glBindBufferBase(GL_UNIFORM_BUFFER, SCENE_DATA_BINDING, sceneDataBuffer);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VERTEX_DATA_BINDING, verticesBuffer);
 
         // set texture
         glBindTextureUnit(0, texture);
         glProgramUniform1i(shaderProgram, FRAG_TEXTURE_UNIFORM_LOC, 0);
 
-        glUseProgram(shaderProgram);
-
         // draw cubes
-        for (const auto& cubeTransform : transforms) {
-            const auto tm = cubeTransform.asMatrix();
-            glProgramUniformMatrix4fv(
-                shaderProgram, MODEL_UNIFORM_LOC, 1, GL_FALSE, glm::value_ptr(tm));
+        for (std::size_t i = 0; i < transforms.size(); ++i) {
+            glBindBufferRange(
+                GL_UNIFORM_BUFFER,
+                SCENE_DATA_BINDING,
+                sceneDataBuffer,
+                i * perObjectDataElementSize,
+                sizeof(PerObjectData));
             glDrawArrays(GL_TRIANGLES, 0, 36);
         }
     }
 
     SDL_GL_SwapWindow(window);
+}
+
+void App::uploadSceneData()
+{
+    sceneData.clear();
+    const auto projection = camera.getProjection();
+    const auto view = camera.getView();
+
+    const auto sceneDataSize = perObjectDataElementSize * transforms.size();
+    sceneData.resize(sceneDataSize);
+
+    int currentOffset = 0;
+    for (const auto& t : transforms) {
+        const auto d = PerObjectData{
+            .projection = projection,
+            .view = view,
+            .model = t.asMatrix(),
+        };
+        std::memcpy(sceneData.data() + currentOffset, &d, sizeof(PerObjectData));
+        currentOffset += perObjectDataElementSize;
+    }
+
+    // reallocate buffer if needed
+    // const auto sceneDataSize = sizeof(PerObjectData) * sceneData.size();
+    if (sceneDataSize > allocatedBufferSize) {
+        while (sceneDataSize > allocatedBufferSize) {
+            allocatedBufferSize *= 2;
+        }
+        glDeleteBuffers(1, &sceneDataBuffer);
+        sceneDataBuffer = allocateBuffer(allocatedBufferSize, "sceneData");
+        std::cout << "Reallocated UBO, new size = " << allocatedBufferSize << std::endl;
+    }
+
+    // upload new data
+    glNamedBufferSubData(sceneDataBuffer, 0, sceneDataSize, sceneData.data());
 }

@@ -6,18 +6,17 @@ struct Vertex {
     vec2 padding;
 };
 
-layout (binding = 0, std140) uniform SceneData
+layout (binding = 0, std140) uniform PerObjectData
 {
     mat4 projection;
     mat4 view;
+    mat4 model;
 };
 
 layout(binding = 1, std430) readonly buffer VertexData {
     Vertex vertices[];
 };
 
-
-layout (location = 0) uniform mat4 model;
 
 layout (location = 0) out vec2 outUV;
 
