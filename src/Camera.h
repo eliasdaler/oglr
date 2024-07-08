@@ -14,6 +14,7 @@ public:
     void setHeading(const glm::quat& q) { heading = q; }
     const glm::quat& getHeading() const { return heading; }
 
+    const glm::mat4& getProjection() const { return projection; }
     glm::mat4 getView() const;
     glm::mat4 getViewProj() const;
 

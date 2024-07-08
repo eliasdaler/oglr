@@ -61,4 +61,10 @@ private:
 
     float timer{0.f};
     float timeToSpawnNewCube{0.5f};
+
+    struct SceneData {
+        glm::mat4 projection;
+        glm::mat4 view;
+    };
+    std::uint32_t sceneDataBuffer{};
 };

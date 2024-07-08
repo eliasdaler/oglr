@@ -16,9 +16,11 @@ namespace
 constexpr auto WINDOW_WIDTH = 1280;
 constexpr auto WINDOW_HEIGHT = 960;
 
-constexpr auto VP_UNIFORM_LOC = 0;
-constexpr auto MODEL_UNIFORM_LOC = 1;
-constexpr auto FRAG_TEXTURE_UNIFORM_LOC = 2;
+constexpr auto MODEL_UNIFORM_LOC = 0;
+constexpr auto FRAG_TEXTURE_UNIFORM_LOC = 1;
+
+constexpr auto SCENE_DATA_BINDING = 0;
+constexpr auto VERTEX_DATA_BINDING = 1;
 
 void setDebugLabel(GLenum identifier, GLuint name, std::string_view label)
 {
@@ -197,6 +199,12 @@ void App::init()
         glDeleteShader(fragShader);
     }
 
+    {
+        glCreateBuffers(1, &sceneDataBuffer);
+        setDebugLabel(GL_BUFFER, sceneDataBuffer, "sceneData");
+        glNamedBufferStorage(sceneDataBuffer, sizeof(SceneData), nullptr, GL_DYNAMIC_STORAGE_BIT);
+    }
+
     // we still need an empty VAO even for vertex pulling
     glGenVertexArrays(1, &vao);
 
@@ -279,8 +287,9 @@ void App::init()
 
 void App::cleanup()
 {
-    glDeleteBuffers(1, &verticesBuffer);
     glDeleteTextures(1, &texture);
+    glDeleteBuffers(1, &verticesBuffer);
+    glDeleteBuffers(1, &sceneDataBuffer);
     glDeleteVertexArrays(1, &vao);
     glDeleteProgram(shaderProgram);
 
@@ -368,14 +377,18 @@ void App::render()
     glClearDepth(1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    // update scene daa
+    const auto sceneData = SceneData{
+        .projection = camera.getProjection(),
+        .view = camera.getView(),
+    };
+    glNamedBufferSubData(sceneDataBuffer, 0, sizeof(SceneData), &sceneData);
+
     glBindVertexArray(vao);
     {
-        // vertices
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, verticesBuffer);
-
-        // update camera
-        const auto vp = camera.getViewProj();
-        glProgramUniformMatrix4fv(shaderProgram, VP_UNIFORM_LOC, 1, GL_FALSE, glm::value_ptr(vp));
+        // buffers
+        glBindBufferBase(GL_UNIFORM_BUFFER, SCENE_DATA_BINDING, sceneDataBuffer);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VERTEX_DATA_BINDING, verticesBuffer);
 
         // set texture
         glBindTextureUnit(0, texture);
