@@ -69,7 +69,7 @@ private:
     Camera camera;
 
     float timer{0.f};
-    float timeToSpawnNewCube{0.5f};
+    float timeToSpawnNewCube{1.0f};
 
     struct GlobalSceneData {
         glm::mat4 projection;
