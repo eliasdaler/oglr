@@ -11,6 +11,7 @@
 
 #include "GLDebugCallback.h"
 #include "ImageLoader.h"
+#include "Meshes.h"
 
 namespace
 {
@@ -242,37 +243,8 @@ void App::init()
             glm::vec3 normal;
         };
 
-        const std::vector<VertexRaw> verticesRaw{
-            {.position = glm::vec3{-1, -1, 1}, .uv = {0, 1}, .normal = {-1, 0, -0}},
-            {.position = glm::vec3{-1, -1, 1}, .uv = {0, 0}, .normal = {0, -1, -0}},
-            {.position = glm::vec3{-1, -1, 1}, .uv = {0, 0}, .normal = {0, 0, 1}},
-            {.position = glm::vec3{-1, 1, 1}, .uv = {1, 1}, .normal = {-1, 0, -0}},
-            {.position = glm::vec3{-1, 1, 1}, .uv = {1, 0}, .normal = {0, 0, 1}},
-            {.position = glm::vec3{-1, 1, 1}, .uv = {1, 0}, .normal = {0, 1, -0}},
-            {.position = glm::vec3{-1, -1, -1}, .uv = {0, 0}, .normal = {-1, 0, -0}},
-            {.position = glm::vec3{-1, -1, -1}, .uv = {0, 1}, .normal = {0, -1, -0}},
-            {.position = glm::vec3{-1, -1, -1}, .uv = {0, 1}, .normal = {0, 0, -1}},
-            {.position = glm::vec3{-1, 1, -1}, .uv = {1, 0}, .normal = {-1, 0, -0}},
-            {.position = glm::vec3{-1, 1, -1}, .uv = {1, 1}, .normal = {0, 0, -1}},
-            {.position = glm::vec3{-1, 1, -1}, .uv = {1, 1}, .normal = {0, 1, -0}},
-            {.position = glm::vec3{1, -1, 1}, .uv = {1, 0}, .normal = {0, -1, -0}},
-            {.position = glm::vec3{1, -1, 1}, .uv = {0, 1}, .normal = {0, 0, 1}},
-            {.position = glm::vec3{1, -1, 1}, .uv = {0, 0}, .normal = {1, 0, -0}},
-            {.position = glm::vec3{1, 1, 1}, .uv = {1, 1}, .normal = {0, 0, 1}},
-            {.position = glm::vec3{1, 1, 1}, .uv = {0, 0}, .normal = {0, 1, -0}},
-            {.position = glm::vec3{1, 1, 1}, .uv = {1, 0}, .normal = {1, 0, -0}},
-            {.position = glm::vec3{1, -1, -1}, .uv = {1, 1}, .normal = {0, -1, -0}},
-            {.position = glm::vec3{1, -1, -1}, .uv = {0, 0}, .normal = {0, 0, -1}},
-            {.position = glm::vec3{1, -1, -1}, .uv = {0, 1}, .normal = {1, 0, -0}},
-            {.position = glm::vec3{1, 1, -1}, .uv = {1, 0}, .normal = {0, 0, -1}},
-            {.position = glm::vec3{1, 1, -1}, .uv = {0, 1}, .normal = {0, 1, -0}},
-            {.position = glm::vec3{1, 1, -1}, .uv = {1, 1}, .normal = {1, 0, -0}},
-        };
-
-        const std::vector<std::uint32_t> indices{
-            0,  3,  9, 0,  9, 6, 8, 10, 21, 8, 21, 19, 20, 23, 17, 20, 17, 14,
-            13, 15, 4, 13, 4, 2, 7, 18, 12, 7, 12, 1,  22, 11, 5,  22, 5,  16,
-        };
+        const auto cubeMesh = util::getStarMesh();
+        std::cout << cubeMesh.indices.size() << std::endl;
 
         struct Vertex {
             glm::vec3 position;
@@ -282,8 +254,8 @@ void App::init()
         };
 
         std::vector<Vertex> vertices;
-        vertices.reserve(verticesRaw.size());
-        for (const auto& vr : verticesRaw) {
+        vertices.reserve(cubeMesh.vertices.size());
+        for (const auto& vr : cubeMesh.vertices) {
             vertices.push_back(Vertex{
                 .position = vr.position,
                 .uv_x = vr.uv.x,
@@ -304,8 +276,8 @@ void App::init()
         setDebugLabel(GL_BUFFER, indexBuffer, "indices");
         glNamedBufferStorage(
             indexBuffer,
-            sizeof(std::uint32_t) * indices.size(),
-            indices.data(),
+            sizeof(std::uint32_t) * cubeMesh.indices.size(),
+            cubeMesh.indices.data(),
             GL_DYNAMIC_STORAGE_BIT);
     }
 
@@ -465,7 +437,7 @@ void App::render()
                 sizeof(PerObjectData));
 
             glBindTextureUnit(0, textures[objects[i].textureIdx]);
-            glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+            glDrawElements(GL_TRIANGLES, 120, GL_UNSIGNED_INT, 0);
         }
     }
 
