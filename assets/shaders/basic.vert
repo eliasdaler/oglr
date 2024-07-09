@@ -1,9 +1,10 @@
 #version 460 core
 
 struct Vertex {
-    vec4 position;
-    vec2 uv;
-    vec2 padding;
+    vec3 position;
+    float uv_x;
+    vec3 normal;
+    float uv_y;
 };
 
 layout (binding = 0, std140) uniform GlobalSceneData
@@ -26,7 +27,7 @@ layout (location = 0) out vec2 outUV;
 
 void main()
 {
-   vec3 pos = vec3(vertices[gl_VertexID].position);
-   gl_Position = projection * view * model * vec4(pos, 1.0);
-   outUV = vertices[gl_VertexID].uv;
+    Vertex v = vertices[gl_VertexID];
+    gl_Position = projection * view * model * vec4(v.position, 1.0);
+    outUV = vec2(v.uv_x, v.uv_y);
 }

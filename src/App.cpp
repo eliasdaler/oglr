@@ -232,61 +232,77 @@ void App::init()
     glGenVertexArrays(1, &vao);
 
     { // make cube
-        struct Vertex {
-            glm::vec4 position;
+        struct VertexRaw {
+            glm::vec3 position;
             glm::vec2 uv;
-            glm::vec2 _padding;
         };
-        std::vector<Vertex> vertices2{
-            {glm::vec4{-0.5f, -0.5f, -0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
-            {glm::vec4{0.5f, -0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 0.0f}},
-            {glm::vec4{0.5f, 0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
-            {glm::vec4{0.5f, 0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
-            {glm::vec4{-0.5f, 0.5f, -0.5f, 0.f}, glm::vec2{1.0f, 1.0f}},
-            {glm::vec4{-0.5f, -0.5f, -0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
+        std::vector<VertexRaw> verticesRaw{
+            {glm::vec3{-0.5f, -0.5f, -0.5f}, glm::vec2{1.0f, 0.0f}},
+            {glm::vec3{0.5f, -0.5f, -0.5f}, glm::vec2{0.0f, 0.0f}},
+            {glm::vec3{0.5f, 0.5f, -0.5f}, glm::vec2{0.0f, 1.0f}},
+            {glm::vec3{0.5f, 0.5f, -0.5f}, glm::vec2{0.0f, 1.0f}},
+            {glm::vec3{-0.5f, 0.5f, -0.5f}, glm::vec2{1.0f, 1.0f}},
+            {glm::vec3{-0.5f, -0.5f, -0.5f}, glm::vec2{1.0f, 0.0f}},
 
-            {glm::vec4{-0.5f, -0.5f, 0.5f, 0.f}, glm::vec2{0.0f, 0.0f}},
-            {glm::vec4{0.5f, -0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
-            {glm::vec4{0.5f, 0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 1.0f}},
-            {glm::vec4{0.5f, 0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 1.0f}},
-            {glm::vec4{-0.5f, 0.5f, 0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
-            {glm::vec4{-0.5f, -0.5f, 0.5f, 0.f}, glm::vec2{0.0f, 0.0f}},
+            {glm::vec3{-0.5f, -0.5f, 0.5f}, glm::vec2{0.0f, 0.0f}},
+            {glm::vec3{0.5f, -0.5f, 0.5f}, glm::vec2{1.0f, 0.0f}},
+            {glm::vec3{0.5f, 0.5f, 0.5f}, glm::vec2{1.0f, 1.0f}},
+            {glm::vec3{0.5f, 0.5f, 0.5f}, glm::vec2{1.0f, 1.0f}},
+            {glm::vec3{-0.5f, 0.5f, 0.5f}, glm::vec2{0.0f, 1.0f}},
+            {glm::vec3{-0.5f, -0.5f, 0.5f}, glm::vec2{0.0f, 0.0f}},
 
-            {glm::vec4{-0.5f, 0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
-            {glm::vec4{-0.5f, 0.5f, -0.5f, 0.f}, glm::vec2{1.0f, 1.0f}},
-            {glm::vec4{-0.5f, -0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
-            {glm::vec4{-0.5f, -0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
-            {glm::vec4{-0.5f, -0.5f, 0.5f, 0.f}, glm::vec2{0.0f, 0.0f}},
-            {glm::vec4{-0.5f, 0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
+            {glm::vec3{-0.5f, 0.5f, 0.5f}, glm::vec2{1.0f, 0.0f}},
+            {glm::vec3{-0.5f, 0.5f, -0.5f}, glm::vec2{1.0f, 1.0f}},
+            {glm::vec3{-0.5f, -0.5f, -0.5f}, glm::vec2{0.0f, 1.0f}},
+            {glm::vec3{-0.5f, -0.5f, -0.5f}, glm::vec2{0.0f, 1.0f}},
+            {glm::vec3{-0.5f, -0.5f, 0.5f}, glm::vec2{0.0f, 0.0f}},
+            {glm::vec3{-0.5f, 0.5f, 0.5f}, glm::vec2{1.0f, 0.0f}},
 
-            {glm::vec4{0.5f, 0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
-            {glm::vec4{0.5f, 0.5f, -0.5f, 0.f}, glm::vec2{1.0f, 1.0f}},
-            {glm::vec4{0.5f, -0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
-            {glm::vec4{0.5f, -0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
-            {glm::vec4{0.5f, -0.5f, 0.5f, 0.f}, glm::vec2{0.0f, 0.0f}},
-            {glm::vec4{0.5f, 0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
+            {glm::vec3{0.5f, 0.5f, 0.5f}, glm::vec2{1.0f, 0.0f}},
+            {glm::vec3{0.5f, 0.5f, -0.5f}, glm::vec2{1.0f, 1.0f}},
+            {glm::vec3{0.5f, -0.5f, -0.5f}, glm::vec2{0.0f, 1.0f}},
+            {glm::vec3{0.5f, -0.5f, -0.5f}, glm::vec2{0.0f, 1.0f}},
+            {glm::vec3{0.5f, -0.5f, 0.5f}, glm::vec2{0.0f, 0.0f}},
+            {glm::vec3{0.5f, 0.5f, 0.5f}, glm::vec2{1.0f, 0.0f}},
 
-            {glm::vec4{-0.5f, -0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
-            {glm::vec4{0.5f, -0.5f, -0.5f, 0.f}, glm::vec2{1.0f, 1.0f}},
-            {glm::vec4{0.5f, -0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
-            {glm::vec4{0.5f, -0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
-            {glm::vec4{-0.5f, -0.5f, 0.5f, 0.f}, glm::vec2{0.0f, 0.0f}},
-            {glm::vec4{-0.5f, -0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
+            {glm::vec3{-0.5f, -0.5f, -0.5f}, glm::vec2{0.0f, 1.0f}},
+            {glm::vec3{0.5f, -0.5f, -0.5f}, glm::vec2{1.0f, 1.0f}},
+            {glm::vec3{0.5f, -0.5f, 0.5f}, glm::vec2{1.0f, 0.0f}},
+            {glm::vec3{0.5f, -0.5f, 0.5f}, glm::vec2{1.0f, 0.0f}},
+            {glm::vec3{-0.5f, -0.5f, 0.5f}, glm::vec2{0.0f, 0.0f}},
+            {glm::vec3{-0.5f, -0.5f, -0.5f}, glm::vec2{0.0f, 1.0f}},
 
-            {glm::vec4{-0.5f, 0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
-            {glm::vec4{0.5f, 0.5f, -0.5f, 0.f}, glm::vec2{1.0f, 1.0f}},
-            {glm::vec4{0.5f, 0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
-            {glm::vec4{0.5f, 0.5f, 0.5f, 0.f}, glm::vec2{1.0f, 0.0f}},
-            {glm::vec4{-0.5f, 0.5f, 0.5f, 0.f}, glm::vec2{0.0f, 0.0f}},
-            {glm::vec4{-0.5f, 0.5f, -0.5f, 0.f}, glm::vec2{0.0f, 1.0f}},
+            {glm::vec3{-0.5f, 0.5f, -0.5f}, glm::vec2{0.0f, 1.0f}},
+            {glm::vec3{0.5f, 0.5f, -0.5f}, glm::vec2{1.0f, 1.0f}},
+            {glm::vec3{0.5f, 0.5f, 0.5f}, glm::vec2{1.0f, 0.0f}},
+            {glm::vec3{0.5f, 0.5f, 0.5f}, glm::vec2{1.0f, 0.0f}},
+            {glm::vec3{-0.5f, 0.5f, 0.5f}, glm::vec2{0.0f, 0.0f}},
+            {glm::vec3{-0.5f, 0.5f, -0.5f}, glm::vec2{0.0f, 1.0f}},
         };
+
+        struct Vertex {
+            glm::vec3 position;
+            float uv_x;
+            glm::vec3 normal;
+            float uv_y;
+        };
+
+        std::vector<Vertex> vertices;
+        vertices.reserve(verticesRaw.size());
+        for (const auto& vr : verticesRaw) {
+            vertices.push_back(Vertex{
+                .position = vr.position,
+                .uv_x = vr.uv.x,
+                .uv_y = vr.uv.y,
+            });
+        }
 
         glCreateBuffers(1, &verticesBuffer);
         setDebugLabel(GL_BUFFER, verticesBuffer, "vertices");
         glNamedBufferStorage(
             verticesBuffer,
-            sizeof(Vertex) * vertices2.size(),
-            vertices2.data(),
+            sizeof(Vertex) * vertices.size(),
+            vertices.data(),
             GL_DYNAMIC_STORAGE_BIT);
     }
 
