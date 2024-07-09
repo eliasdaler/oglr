@@ -37,6 +37,8 @@ private:
     void uploadSceneData();
     void render();
 
+    void generateRandomCube();
+
     SDL_Window* window{nullptr};
     SDL_GLContext glContext{nullptr};
 
@@ -52,11 +54,16 @@ private:
 
     std::uint32_t shaderProgram{};
     std::uint32_t vao{}; // empty vao
-    std::uint32_t texture{};
+
+    std::vector<std::uint32_t> textures;
 
     std::uint32_t verticesBuffer{};
 
-    std::vector<Transform> transforms;
+    struct ObjectData {
+        Transform transform;
+        std::size_t textureIdx{}; // index into "textures" array
+    };
+    std::vector<ObjectData> objects;
 
     Camera camera;
 

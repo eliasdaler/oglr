@@ -123,6 +123,16 @@ int getUBOArrayElementSize(std::size_t elementSize, int uboAlignment)
     return ((elementSize / uboAlignment) + 1) * uboAlignment;
 }
 
+template<typename T, typename RNGType>
+std::size_t chooseRandomElement(const std::vector<T>& v, RNGType& rng)
+{
+    if (v.empty()) {
+        return 0;
+    }
+    std::uniform_int_distribution<std::size_t> dist{0, v.size() - 1};
+    return dist(rng);
+}
+
 }
 
 void App::start()
@@ -135,16 +145,6 @@ void App::start()
 void App::init()
 {
     rng = std::mt19937{randomDevice()};
-
-    auto numCubesToGenerate = dist(rng);
-    const auto numCubesSide = 4.f;
-    const auto cubeSpacing = 2.25f;
-    for (int i = 0; i < numCubesToGenerate; ++i) {
-        Transform transform;
-        transform.position.x = (i / numCubesSide) * cubeSpacing - 2.f;
-        transform.position.y = (i % (int)numCubesSide) * cubeSpacing;
-        transforms.push_back(transform);
-    }
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) < 0) {
         printf("SDL could not initialize. SDL Error: %s\n", SDL_GetError());
@@ -290,9 +290,16 @@ void App::init()
             GL_DYNAMIC_STORAGE_BIT);
     }
 
-    texture = loadTextureFromFile("assets/images/test_texture.png");
-    if (texture == 0) {
-        std::exit(1);
+    const auto texturesToLoad = {
+        "assets/images/texture1.png",
+        "assets/images/texture2.png",
+    };
+    for (const auto& texturePath : texturesToLoad) {
+        auto texture = loadTextureFromFile(texturePath);
+        if (texture == 0) {
+            std::exit(1);
+        }
+        textures.push_back(texture);
     }
 
     // initial state
@@ -306,11 +313,16 @@ void App::init()
         camera.setPosition(glm::vec3{-5.f, 0.f, -50.0f});
         camera.lookAt(glm::vec3{0.f, 2.f, 0.f});
     }
+
+    const auto numCubesToGenerate = dist(rng);
+    for (int i = 0; i < numCubesToGenerate; ++i) {
+        generateRandomCube();
+    }
 }
 
 void App::cleanup()
 {
-    glDeleteTextures(1, &texture);
+    glDeleteTextures(textures.size(), textures.data());
     glDeleteBuffers(1, &verticesBuffer);
     glDeleteBuffers(1, &sceneDataBuffer);
     glDeleteVertexArrays(1, &vao);
@@ -380,17 +392,14 @@ void App::update(float dt)
 {
     // rotate cube
     static const auto rotationSpeed = glm::radians(45.f);
-    for (auto& cubeTransform : transforms) {
-        cubeTransform.heading *= glm::angleAxis(rotationSpeed * dt, glm::vec3{0.f, 1.f, 0.f});
+    for (auto& object : objects) {
+        object.transform.heading *= glm::angleAxis(rotationSpeed * dt, glm::vec3{0.f, 1.f, 0.f});
     }
 
     timer += dt;
     if (timer >= timeToSpawnNewCube) {
         timer = 0.f;
-        Transform transform;
-        transform.position.x = dist2(rng);
-        transform.position.y = dist2(rng);
-        transforms.push_back(transform);
+        generateRandomCube();
     }
 }
 
@@ -404,13 +413,9 @@ void App::render()
 
     glBindVertexArray(vao);
     {
-        glUseProgram(shaderProgram);
-
-        // buffers
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VERTEX_DATA_BINDING, verticesBuffer);
 
-        // set texture
-        glBindTextureUnit(0, texture);
+        // object texture will be read from TU0
         glProgramUniform1i(shaderProgram, FRAG_TEXTURE_UNIFORM_LOC, 0);
 
         glBindBufferRange(
@@ -420,14 +425,17 @@ void App::render()
             0,
             sizeof(GlobalSceneData));
 
+        glUseProgram(shaderProgram);
         // draw cubes
-        for (std::size_t i = 0; i < transforms.size(); ++i) {
+        for (std::size_t i = 0; i < objects.size(); ++i) {
             glBindBufferRange(
                 GL_UNIFORM_BUFFER,
                 PER_OBJECT_DATA_BINDING,
                 sceneDataBuffer,
                 globalSceneDataSize + i * perObjectDataElementSize,
                 sizeof(PerObjectData));
+
+            glBindTextureUnit(0, textures[objects[i].textureIdx]);
             glDrawArrays(GL_TRIANGLES, 0, 36);
         }
     }
@@ -441,7 +449,7 @@ void App::uploadSceneData()
     const auto projection = camera.getProjection();
     const auto view = camera.getView();
 
-    const auto sceneDataSize = globalSceneDataSize + perObjectDataElementSize * transforms.size();
+    const auto sceneDataSize = globalSceneDataSize + perObjectDataElementSize * objects.size();
     sceneData.resize(sceneDataSize);
 
     int currentOffset = 0;
@@ -455,9 +463,9 @@ void App::uploadSceneData()
     currentOffset += globalSceneDataSize;
 
     // per object data
-    for (const auto& t : transforms) {
+    for (const auto& object : objects) {
         const auto d = PerObjectData{
-            .model = t.asMatrix(),
+            .model = object.transform.asMatrix(),
         };
         std::memcpy(sceneData.data() + currentOffset, &d, sizeof(PerObjectData));
         currentOffset += perObjectDataElementSize;
@@ -476,4 +484,14 @@ void App::uploadSceneData()
 
     // upload new data
     glNamedBufferSubData(sceneDataBuffer, 0, sceneDataSize, sceneData.data());
+}
+
+void App::generateRandomCube()
+{
+    ObjectData object{
+        .textureIdx = chooseRandomElement(textures, rng),
+    };
+    object.transform.position.x = dist2(rng);
+    object.transform.position.y = dist2(rng);
+    objects.push_back(object);
 }
