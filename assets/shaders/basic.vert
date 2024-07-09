@@ -11,6 +11,11 @@ layout (binding = 0, std140) uniform GlobalSceneData
 {
     mat4 projection;
     mat4 view;
+    vec4 cameraPos;
+
+    vec4 sunlightColorAndIntensity;
+    vec4 sunlightDirAndUnused;
+    vec4 ambientColorAndIntensity;
 };
 
 layout (binding = 1, std140) uniform PerObjectData

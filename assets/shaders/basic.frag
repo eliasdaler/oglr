@@ -8,6 +8,17 @@ out vec4 fragColor;
 
 layout (location = 1) uniform sampler2D tex;
 
+layout (binding = 0, std140) uniform GlobalSceneData
+{
+    mat4 projection;
+    mat4 view;
+    vec4 cameraPos;
+
+    vec4 sunlightColorAndIntensity;
+    vec4 sunlightDirAndUnused;
+    vec4 ambientColorAndIntensity;
+};
+
 vec3 blinnPhongBRDF(vec3 diffuse, vec3 n, vec3 v, vec3 l, vec3 h) {
     vec3 Fd = diffuse;
 
@@ -22,16 +33,15 @@ vec3 blinnPhongBRDF(vec3 diffuse, vec3 n, vec3 v, vec3 l, vec3 h) {
 
 void main()
 {
-    vec3 lightColor = vec3(0.5, 0.6, 0.9);
-    float lightIntensity = 2.0;
-    vec3 cameraPos = vec3(-5.f, 10.f, -50.f);
-    vec3 lightDir = normalize(vec3(1.0, -1.0, 1.0));
+    vec3 lightColor = sunlightColorAndIntensity.rgb;
+    float lightIntensity = sunlightColorAndIntensity.a;
+    vec3 lightDir = sunlightDirAndUnused.xyz;
 
     vec3 fragPos = inPos;
     vec3 n = normalize(inNormal);
 
     vec3 l = -lightDir;
-    vec3 v = normalize(cameraPos - fragPos);
+    vec3 v = normalize(cameraPos.xyz - fragPos);
     vec3 h = normalize(v + l);
 
     float NoL = clamp(dot(n, l), 0.0, 1.0);
@@ -40,7 +50,8 @@ void main()
     vec3 fr = blinnPhongBRDF(diffuse, n, v, l, h);
     fragColor.rgb = (fr * lightColor) * (lightIntensity * NoL);
 
-    vec3 ambientColor = vec3(0.3, 0.65, 0.8);
-    float ambientIntensity = 0.3;
+    // ambient
+    vec3 ambientColor = ambientColorAndIntensity.rgb;
+    float ambientIntensity = ambientColorAndIntensity.a;
     fragColor.rgb += diffuse * ambientColor * ambientIntensity;
 }

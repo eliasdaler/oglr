@@ -74,6 +74,10 @@ private:
     struct GlobalSceneData {
         glm::mat4 projection;
         glm::mat4 view;
+        glm::vec4 cameraPos;
+        glm::vec4 sunlightColorAndIntensity;
+        glm::vec4 sunlightDirAndUnused;
+        glm::vec4 ambientColorAndIntensity;
     };
     struct PerObjectData {
         glm::mat4 model;
@@ -85,4 +89,11 @@ private:
     int globalSceneDataSize{};
     int perObjectDataElementSize{};
     std::vector<std::uint8_t> sceneData;
+
+    glm::vec3 sunlightColor;
+    float sunlightIntensity;
+    glm::vec3 sunlightDir;
+
+    glm::vec3 ambientColor;
+    float ambientIntensity;
 };

@@ -7,6 +7,7 @@
 
 #include <fstream>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/compatibility.hpp> // lerp for vec3
 
 #include "GLDebugCallback.h"
 #include "ImageLoader.h"
@@ -333,6 +334,14 @@ void App::init()
     for (int i = 0; i < numCubesToGenerate; ++i) {
         generateRandomCube();
     }
+
+    // init lights
+    sunlightColor = glm::vec3{1.0, 0.36, -0.026};
+    sunlightIntensity = 1.5f;
+    sunlightDir = glm::normalize(glm::vec3(1.0, -1.0, 1.0));
+
+    ambientColor = glm::vec3{0.3, 0.65, 0.8};
+    ambientIntensity = 0.2f;
 }
 
 void App::cleanup()
@@ -474,6 +483,10 @@ void App::uploadSceneData()
     const auto d = GlobalSceneData{
         .projection = projection,
         .view = view,
+        .cameraPos = glm::vec4{camera.getPosition(), 0.f},
+        .sunlightColorAndIntensity = glm::vec4{sunlightColor, sunlightIntensity},
+        .sunlightDirAndUnused = glm::vec4{sunlightDir, 0.f},
+        .ambientColorAndIntensity = glm::vec4{ambientColor, ambientIntensity},
     };
     std::memcpy(sceneData.data() + currentOffset, &d, sizeof(GlobalSceneData));
     currentOffset += globalSceneDataSize;
