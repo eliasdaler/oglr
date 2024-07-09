@@ -25,6 +25,19 @@ struct Transform {
     }
 };
 
+struct GPUVertex {
+    glm::vec3 position;
+    float uv_x;
+    glm::vec3 normal;
+    float uv_y;
+};
+
+struct GPUMesh {
+    std::uint32_t vertexBuffer{};
+    std::uint32_t indexBuffer{};
+    std::uint32_t numIndices{};
+};
+
 class App {
 public:
     void start();
@@ -37,7 +50,7 @@ private:
     void uploadSceneData();
     void render();
 
-    void generateRandomCube();
+    void generateRandomObject();
 
     SDL_Window* window{nullptr};
     SDL_GLContext glContext{nullptr};
@@ -55,13 +68,12 @@ private:
     std::uint32_t shaderProgram{};
     std::uint32_t vao{}; // empty vao
 
+    std::vector<GPUMesh> meshes;
     std::vector<std::uint32_t> textures;
-
-    std::uint32_t verticesBuffer{};
-    std::uint32_t indexBuffer{};
 
     struct ObjectData {
         Transform transform;
+        std::size_t meshIdx{}; // index into "meshes" array
         std::size_t textureIdx{}; // index into "textures" array
     };
     std::vector<ObjectData> objects;

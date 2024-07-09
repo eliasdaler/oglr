@@ -8,20 +8,20 @@
 
 namespace util
 {
-struct VertexRaw {
+struct CPUVertex {
     glm::vec3 position;
     glm::vec2 uv;
     glm::vec3 normal;
 };
 
 struct CPUMesh {
-    std::vector<VertexRaw> vertices;
+    std::vector<CPUVertex> vertices;
     std::vector<std::uint32_t> indices;
 };
 
 inline CPUMesh getCubeMesh()
 {
-    std::vector<VertexRaw> vertices{
+    std::vector<CPUVertex> vertices{
         {.position = glm::vec3{-1, -1, 1}, .uv = {0, 1}, .normal = {-1, 0, -0}},
         {.position = glm::vec3{-1, -1, 1}, .uv = {0, 0}, .normal = {0, -1, -0}},
         {.position = glm::vec3{-1, -1, 1}, .uv = {0, 0}, .normal = {0, 0, 1}},
@@ -61,7 +61,7 @@ inline CPUMesh getCubeMesh()
 
 inline CPUMesh getStarMesh()
 {
-    std::vector<VertexRaw> vertices{
+    std::vector<CPUVertex> vertices{
         {.position = glm::vec3{0, 0.25, -0}, .uv = {0.26286554, 0.75}, .normal = {0, 1, 0}},
         {.position = glm::vec3{0, 0.25, -0}, .uv = {0.26286554, 0.75}, .normal = {0, 1, -0}},
         {.position = glm::vec3{0, 0.25, -0}, .uv = {0.26286554, 0.75}, .normal = {0, 1, 0}},

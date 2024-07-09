@@ -138,6 +138,39 @@ std::size_t chooseRandomElement(const std::vector<T>& v, RNGType& rng)
     return dist(rng);
 }
 
+GPUMesh uploadMeshToGPU(const util::CPUMesh& cpuMesh)
+{
+    std::vector<GPUVertex> vertices;
+    vertices.reserve(cpuMesh.vertices.size());
+    for (const auto& vr : cpuMesh.vertices) {
+        vertices.push_back(GPUVertex{
+            .position = vr.position,
+            .uv_x = vr.uv.x,
+            .normal = vr.normal,
+            .uv_y = vr.uv.y,
+        });
+    }
+
+    GLuint vertexBuffer;
+    glCreateBuffers(1, &vertexBuffer);
+    glNamedBufferStorage(
+        vertexBuffer, sizeof(GPUVertex) * vertices.size(), vertices.data(), GL_DYNAMIC_STORAGE_BIT);
+
+    GLuint indexBuffer;
+    glCreateBuffers(1, &indexBuffer);
+    glNamedBufferStorage(
+        indexBuffer,
+        sizeof(std::uint32_t) * cpuMesh.indices.size(),
+        cpuMesh.indices.data(),
+        GL_DYNAMIC_STORAGE_BIT);
+
+    return GPUMesh{
+        .vertexBuffer = vertexBuffer,
+        .indexBuffer = indexBuffer,
+        .numIndices = static_cast<std::uint32_t>(cpuMesh.indices.size()),
+    };
+}
+
 }
 
 void App::start()
@@ -236,51 +269,6 @@ void App::init()
     // we still need an empty VAO even for vertex pulling
     glGenVertexArrays(1, &vao);
 
-    { // make cube
-        struct VertexRaw {
-            glm::vec3 position;
-            glm::vec2 uv;
-            glm::vec3 normal;
-        };
-
-        const auto cubeMesh = util::getStarMesh();
-        std::cout << cubeMesh.indices.size() << std::endl;
-
-        struct Vertex {
-            glm::vec3 position;
-            float uv_x;
-            glm::vec3 normal;
-            float uv_y;
-        };
-
-        std::vector<Vertex> vertices;
-        vertices.reserve(cubeMesh.vertices.size());
-        for (const auto& vr : cubeMesh.vertices) {
-            vertices.push_back(Vertex{
-                .position = vr.position,
-                .uv_x = vr.uv.x,
-                .normal = vr.normal,
-                .uv_y = vr.uv.y,
-            });
-        }
-
-        glCreateBuffers(1, &verticesBuffer);
-        setDebugLabel(GL_BUFFER, verticesBuffer, "vertices");
-        glNamedBufferStorage(
-            verticesBuffer,
-            sizeof(Vertex) * vertices.size(),
-            vertices.data(),
-            GL_DYNAMIC_STORAGE_BIT);
-
-        glCreateBuffers(1, &indexBuffer);
-        setDebugLabel(GL_BUFFER, indexBuffer, "indices");
-        glNamedBufferStorage(
-            indexBuffer,
-            sizeof(std::uint32_t) * cubeMesh.indices.size(),
-            cubeMesh.indices.data(),
-            GL_DYNAMIC_STORAGE_BIT);
-    }
-
     const auto texturesToLoad = {
         "assets/images/texture1.png",
         "assets/images/texture2.png",
@@ -291,6 +279,11 @@ void App::init()
             std::exit(1);
         }
         textures.push_back(texture);
+    }
+
+    { // load meshes
+        meshes.push_back(uploadMeshToGPU(util::getCubeMesh()));
+        meshes.push_back(uploadMeshToGPU(util::getStarMesh()));
     }
 
     // initial state
@@ -305,10 +298,10 @@ void App::init()
         camera.lookAt(glm::vec3{0.f, 2.f, 0.f});
     }
 
-    auto numCubesToGenerate = dist(rng);
-    numCubesToGenerate = 10;
-    for (int i = 0; i < numCubesToGenerate; ++i) {
-        generateRandomCube();
+    auto numObjectsToSpawn = dist(rng);
+    numObjectsToSpawn = 10;
+    for (int i = 0; i < numObjectsToSpawn; ++i) {
+        generateRandomObject();
     }
 
     // init lights
@@ -323,8 +316,12 @@ void App::init()
 void App::cleanup()
 {
     glDeleteTextures(textures.size(), textures.data());
-    glDeleteBuffers(1, &verticesBuffer);
+    for (const auto& mesh : meshes) {
+        glDeleteBuffers(1, &mesh.indexBuffer);
+        glDeleteBuffers(1, &mesh.vertexBuffer);
+    }
     glDeleteBuffers(1, &sceneDataBuffer);
+
     glDeleteVertexArrays(1, &vao);
     glDeleteProgram(shaderProgram);
 
@@ -399,7 +396,7 @@ void App::update(float dt)
     timer += dt;
     if (timer >= timeToSpawnNewCube) {
         timer = 0.f;
-        generateRandomCube();
+        generateRandomObject();
     }
 }
 
@@ -413,9 +410,6 @@ void App::render()
 
     glBindVertexArray(vao);
     {
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VERTEX_DATA_BINDING, verticesBuffer);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
-
         // object texture will be read from TU0
         glProgramUniform1i(shaderProgram, FRAG_TEXTURE_UNIFORM_LOC, 0);
 
@@ -426,9 +420,13 @@ void App::render()
             0,
             sizeof(GlobalSceneData));
 
+        // draw objects
         glUseProgram(shaderProgram);
-        // draw cubes
         for (std::size_t i = 0; i < objects.size(); ++i) {
+            const auto& mesh = meshes[objects[i].meshIdx];
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VERTEX_DATA_BINDING, mesh.vertexBuffer);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.indexBuffer);
+
             glBindBufferRange(
                 GL_UNIFORM_BUFFER,
                 PER_OBJECT_DATA_BINDING,
@@ -437,7 +435,7 @@ void App::render()
                 sizeof(PerObjectData));
 
             glBindTextureUnit(0, textures[objects[i].textureIdx]);
-            glDrawElements(GL_TRIANGLES, 120, GL_UNSIGNED_INT, 0);
+            glDrawElements(GL_TRIANGLES, mesh.numIndices, GL_UNSIGNED_INT, 0);
         }
     }
 
@@ -491,9 +489,10 @@ void App::uploadSceneData()
     glNamedBufferSubData(sceneDataBuffer, 0, sceneDataSize, sceneData.data());
 }
 
-void App::generateRandomCube()
+void App::generateRandomObject()
 {
     ObjectData object{
+        .meshIdx = chooseRandomElement(meshes, rng),
         .textureIdx = chooseRandomElement(textures, rng),
     };
     object.transform.position.x = dist2(rng);
