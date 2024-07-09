@@ -58,6 +58,7 @@ private:
     std::vector<std::uint32_t> textures;
 
     std::uint32_t verticesBuffer{};
+    std::uint32_t indexBuffer{};
 
     struct ObjectData {
         Transform transform;

@@ -235,49 +235,39 @@ void App::init()
         struct VertexRaw {
             glm::vec3 position;
             glm::vec2 uv;
+            glm::vec3 normal;
         };
-        std::vector<VertexRaw> verticesRaw{
-            {glm::vec3{-0.5f, -0.5f, -0.5f}, glm::vec2{1.0f, 0.0f}},
-            {glm::vec3{0.5f, -0.5f, -0.5f}, glm::vec2{0.0f, 0.0f}},
-            {glm::vec3{0.5f, 0.5f, -0.5f}, glm::vec2{0.0f, 1.0f}},
-            {glm::vec3{0.5f, 0.5f, -0.5f}, glm::vec2{0.0f, 1.0f}},
-            {glm::vec3{-0.5f, 0.5f, -0.5f}, glm::vec2{1.0f, 1.0f}},
-            {glm::vec3{-0.5f, -0.5f, -0.5f}, glm::vec2{1.0f, 0.0f}},
 
-            {glm::vec3{-0.5f, -0.5f, 0.5f}, glm::vec2{0.0f, 0.0f}},
-            {glm::vec3{0.5f, -0.5f, 0.5f}, glm::vec2{1.0f, 0.0f}},
-            {glm::vec3{0.5f, 0.5f, 0.5f}, glm::vec2{1.0f, 1.0f}},
-            {glm::vec3{0.5f, 0.5f, 0.5f}, glm::vec2{1.0f, 1.0f}},
-            {glm::vec3{-0.5f, 0.5f, 0.5f}, glm::vec2{0.0f, 1.0f}},
-            {glm::vec3{-0.5f, -0.5f, 0.5f}, glm::vec2{0.0f, 0.0f}},
+        const std::vector<VertexRaw> verticesRaw{
+            {.position = glm::vec3{-1, -1, 1}, .uv = {0, 1}, .normal = {-1, 0, -0}},
+            {.position = glm::vec3{-1, -1, 1}, .uv = {0, 0}, .normal = {0, -1, -0}},
+            {.position = glm::vec3{-1, -1, 1}, .uv = {0, 0}, .normal = {0, 0, 1}},
+            {.position = glm::vec3{-1, 1, 1}, .uv = {1, 1}, .normal = {-1, 0, -0}},
+            {.position = glm::vec3{-1, 1, 1}, .uv = {1, 0}, .normal = {0, 0, 1}},
+            {.position = glm::vec3{-1, 1, 1}, .uv = {1, 0}, .normal = {0, 1, -0}},
+            {.position = glm::vec3{-1, -1, -1}, .uv = {0, 0}, .normal = {-1, 0, -0}},
+            {.position = glm::vec3{-1, -1, -1}, .uv = {0, 1}, .normal = {0, -1, -0}},
+            {.position = glm::vec3{-1, -1, -1}, .uv = {0, 1}, .normal = {0, 0, -1}},
+            {.position = glm::vec3{-1, 1, -1}, .uv = {1, 0}, .normal = {-1, 0, -0}},
+            {.position = glm::vec3{-1, 1, -1}, .uv = {1, 1}, .normal = {0, 0, -1}},
+            {.position = glm::vec3{-1, 1, -1}, .uv = {1, 1}, .normal = {0, 1, -0}},
+            {.position = glm::vec3{1, -1, 1}, .uv = {1, 0}, .normal = {0, -1, -0}},
+            {.position = glm::vec3{1, -1, 1}, .uv = {0, 1}, .normal = {0, 0, 1}},
+            {.position = glm::vec3{1, -1, 1}, .uv = {0, 0}, .normal = {1, 0, -0}},
+            {.position = glm::vec3{1, 1, 1}, .uv = {1, 1}, .normal = {0, 0, 1}},
+            {.position = glm::vec3{1, 1, 1}, .uv = {0, 0}, .normal = {0, 1, -0}},
+            {.position = glm::vec3{1, 1, 1}, .uv = {1, 0}, .normal = {1, 0, -0}},
+            {.position = glm::vec3{1, -1, -1}, .uv = {1, 1}, .normal = {0, -1, -0}},
+            {.position = glm::vec3{1, -1, -1}, .uv = {0, 0}, .normal = {0, 0, -1}},
+            {.position = glm::vec3{1, -1, -1}, .uv = {0, 1}, .normal = {1, 0, -0}},
+            {.position = glm::vec3{1, 1, -1}, .uv = {1, 0}, .normal = {0, 0, -1}},
+            {.position = glm::vec3{1, 1, -1}, .uv = {0, 1}, .normal = {0, 1, -0}},
+            {.position = glm::vec3{1, 1, -1}, .uv = {1, 1}, .normal = {1, 0, -0}},
+        };
 
-            {glm::vec3{-0.5f, 0.5f, 0.5f}, glm::vec2{1.0f, 0.0f}},
-            {glm::vec3{-0.5f, 0.5f, -0.5f}, glm::vec2{1.0f, 1.0f}},
-            {glm::vec3{-0.5f, -0.5f, -0.5f}, glm::vec2{0.0f, 1.0f}},
-            {glm::vec3{-0.5f, -0.5f, -0.5f}, glm::vec2{0.0f, 1.0f}},
-            {glm::vec3{-0.5f, -0.5f, 0.5f}, glm::vec2{0.0f, 0.0f}},
-            {glm::vec3{-0.5f, 0.5f, 0.5f}, glm::vec2{1.0f, 0.0f}},
-
-            {glm::vec3{0.5f, 0.5f, 0.5f}, glm::vec2{1.0f, 0.0f}},
-            {glm::vec3{0.5f, 0.5f, -0.5f}, glm::vec2{1.0f, 1.0f}},
-            {glm::vec3{0.5f, -0.5f, -0.5f}, glm::vec2{0.0f, 1.0f}},
-            {glm::vec3{0.5f, -0.5f, -0.5f}, glm::vec2{0.0f, 1.0f}},
-            {glm::vec3{0.5f, -0.5f, 0.5f}, glm::vec2{0.0f, 0.0f}},
-            {glm::vec3{0.5f, 0.5f, 0.5f}, glm::vec2{1.0f, 0.0f}},
-
-            {glm::vec3{-0.5f, -0.5f, -0.5f}, glm::vec2{0.0f, 1.0f}},
-            {glm::vec3{0.5f, -0.5f, -0.5f}, glm::vec2{1.0f, 1.0f}},
-            {glm::vec3{0.5f, -0.5f, 0.5f}, glm::vec2{1.0f, 0.0f}},
-            {glm::vec3{0.5f, -0.5f, 0.5f}, glm::vec2{1.0f, 0.0f}},
-            {glm::vec3{-0.5f, -0.5f, 0.5f}, glm::vec2{0.0f, 0.0f}},
-            {glm::vec3{-0.5f, -0.5f, -0.5f}, glm::vec2{0.0f, 1.0f}},
-
-            {glm::vec3{-0.5f, 0.5f, -0.5f}, glm::vec2{0.0f, 1.0f}},
-            {glm::vec3{0.5f, 0.5f, -0.5f}, glm::vec2{1.0f, 1.0f}},
-            {glm::vec3{0.5f, 0.5f, 0.5f}, glm::vec2{1.0f, 0.0f}},
-            {glm::vec3{0.5f, 0.5f, 0.5f}, glm::vec2{1.0f, 0.0f}},
-            {glm::vec3{-0.5f, 0.5f, 0.5f}, glm::vec2{0.0f, 0.0f}},
-            {glm::vec3{-0.5f, 0.5f, -0.5f}, glm::vec2{0.0f, 1.0f}},
+        const std::vector<std::uint32_t> indices{
+            0,  3,  9, 0,  9, 6, 8, 10, 21, 8, 21, 19, 20, 23, 17, 20, 17, 14,
+            13, 15, 4, 13, 4, 2, 7, 18, 12, 7, 12, 1,  22, 11, 5,  22, 5,  16,
         };
 
         struct Vertex {
@@ -293,6 +283,7 @@ void App::init()
             vertices.push_back(Vertex{
                 .position = vr.position,
                 .uv_x = vr.uv.x,
+                .normal = vr.normal,
                 .uv_y = vr.uv.y,
             });
         }
@@ -303,6 +294,14 @@ void App::init()
             verticesBuffer,
             sizeof(Vertex) * vertices.size(),
             vertices.data(),
+            GL_DYNAMIC_STORAGE_BIT);
+
+        glCreateBuffers(1, &indexBuffer);
+        setDebugLabel(GL_BUFFER, indexBuffer, "indices");
+        glNamedBufferStorage(
+            indexBuffer,
+            sizeof(std::uint32_t) * indices.size(),
+            indices.data(),
             GL_DYNAMIC_STORAGE_BIT);
     }
 
@@ -326,7 +325,7 @@ void App::init()
         const auto zNear = 0.1f;
         const auto zFar = 1000.f;
         camera.init(fovX, zNear, zFar, (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT);
-        camera.setPosition(glm::vec3{-5.f, 0.f, -50.0f});
+        camera.setPosition(glm::vec3{-5.f, 10.f, -50.0f});
         camera.lookAt(glm::vec3{0.f, 2.f, 0.f});
     }
 
@@ -409,7 +408,7 @@ void App::update(float dt)
     // rotate cube
     static const auto rotationSpeed = glm::radians(45.f);
     for (auto& object : objects) {
-        object.transform.heading *= glm::angleAxis(rotationSpeed * dt, glm::vec3{0.f, 1.f, 0.f});
+        object.transform.heading *= glm::angleAxis(rotationSpeed * dt, glm::vec3{1.f, 1.f, 0.f});
     }
 
     timer += dt;
@@ -430,6 +429,7 @@ void App::render()
     glBindVertexArray(vao);
     {
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VERTEX_DATA_BINDING, verticesBuffer);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
 
         // object texture will be read from TU0
         glProgramUniform1i(shaderProgram, FRAG_TEXTURE_UNIFORM_LOC, 0);
@@ -452,7 +452,7 @@ void App::render()
                 sizeof(PerObjectData));
 
             glBindTextureUnit(0, textures[objects[i].textureIdx]);
-            glDrawArrays(GL_TRIANGLES, 0, 36);
+            glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
         }
     }
 
