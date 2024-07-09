@@ -87,7 +87,10 @@ GLuint loadTextureFromFile(const std::filesystem::path& path)
     glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    glTextureStorage2D(texture, 1, GL_SRGB8_ALPHA8, imageData.width, imageData.height);
+    const auto maxExtent = std::max(imageData.width, imageData.height);
+    const auto mipLevels = (std::uint32_t)std::floor(std::log2(maxExtent)) + 1;
+
+    glTextureStorage2D(texture, mipLevels, GL_SRGB8_ALPHA8, imageData.width, imageData.height);
     glTextureSubImage2D(
         texture,
         0,
@@ -330,13 +333,14 @@ void App::init()
         camera.lookAt(glm::vec3{0.f, 2.f, 0.f});
     }
 
-    const auto numCubesToGenerate = dist(rng);
+    auto numCubesToGenerate = dist(rng);
+    numCubesToGenerate = 10;
     for (int i = 0; i < numCubesToGenerate; ++i) {
         generateRandomCube();
     }
 
     // init lights
-    sunlightColor = glm::vec3{1.0, 0.36, -0.026};
+    sunlightColor = glm::vec3{0.65, 0.4, 0.3};
     sunlightIntensity = 1.5f;
     sunlightDir = glm::normalize(glm::vec3(1.0, -1.0, 1.0));
 
