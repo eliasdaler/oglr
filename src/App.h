@@ -53,7 +53,7 @@ private:
     void handleFreeCameraControls(float dt);
 
     void generateRandomObject();
-    void spawnCube(const glm::vec3& pos);
+    void spawnCube(const glm::vec3& pos, std::size_t textureIdx);
 
     SDL_Window* window{nullptr};
     SDL_GLContext glContext{nullptr};

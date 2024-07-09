@@ -309,8 +309,17 @@ void App::init()
     }
 
     // initial state
+    glClearDepth(1.f);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
     glEnable(GL_DEPTH_TEST);
-    // glEnable(GL_BLEND);
+    glDepthMask(GL_FALSE);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
 
     { // init camera
         const auto fovX = 45.f;
@@ -328,9 +337,9 @@ void App::init()
         generateRandomObject();
     }
 
-    spawnCube({0.f, 0.f, 0.f});
-    spawnCube({0.f, 0.f, 2.5f});
-    spawnCube({0.f, 0.f, 5.f});
+    spawnCube({0.f, 0.f, 0.f}, 0);
+    spawnCube({0.f, 0.f, 2.5f}, 1);
+    spawnCube({0.f, 0.f, 5.0f}, 0);
 
     camera.setPosition({0.f, 0.5f, -10.f});
 
@@ -495,10 +504,22 @@ void App::render()
             0,
             sizeof(GlobalSceneData));
 
-        // draw objects
         glUseProgram(shaderProgram);
-        for (std::size_t i = 0; i < objects.size(); ++i) {
-            const auto& mesh = meshes[objects[i].meshIdx];
+
+        // sort by distance to ther camera (decreasing)
+        std::vector<std::size_t> sortedIdx(objects.size());
+        std::iota(sortedIdx.begin(), sortedIdx.end(), 0);
+        std::sort(sortedIdx.begin(), sortedIdx.end(), [this](std::size_t a, std::size_t b) {
+            const auto lengthA = glm::length(camera.getPosition() - objects[a].transform.position);
+            const auto lengthB = glm::length(camera.getPosition() - objects[b].transform.position);
+            return lengthA > lengthB;
+        });
+
+        // draw front to back
+        for (std::size_t i = 0; i < sortedIdx.size(); ++i) {
+            auto objectIdx = sortedIdx[i];
+            const auto& object = objects[objectIdx];
+            const auto& mesh = meshes[object.meshIdx];
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VERTEX_DATA_BINDING, mesh.vertexBuffer);
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.indexBuffer);
 
@@ -506,10 +527,10 @@ void App::render()
                 GL_UNIFORM_BUFFER,
                 PER_OBJECT_DATA_BINDING,
                 sceneDataBuffer,
-                globalSceneDataSize + i * perObjectDataElementSize,
+                globalSceneDataSize + objectIdx * perObjectDataElementSize,
                 sizeof(PerObjectData));
 
-            glBindTextureUnit(0, textures[objects[i].textureIdx]);
+            glBindTextureUnit(0, textures[object.textureIdx]);
             glDrawElements(GL_TRIANGLES, mesh.numIndices, GL_UNSIGNED_INT, 0);
         }
     }
@@ -575,11 +596,11 @@ void App::generateRandomObject()
     objects.push_back(object);
 }
 
-void App::spawnCube(const glm::vec3& pos)
+void App::spawnCube(const glm::vec3& pos, std::size_t textureIdx)
 {
     ObjectData object{
         .meshIdx = 0,
-        .textureIdx = chooseRandomElement(textures, rng),
+        .textureIdx = textureIdx,
     };
     object.transform.position = pos;
     objects.push_back(object);

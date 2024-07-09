@@ -55,5 +55,6 @@ void main()
     float ambientIntensity = ambientColorAndIntensity.a;
     fragColor.rgb += diffuse * ambientColor * ambientIntensity;
 
-    fragColor.a = 0.5;
+    fragColor.a = 1.0;
+    fragColor.a = 0.9;
 }
