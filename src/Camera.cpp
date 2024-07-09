@@ -9,6 +9,7 @@ namespace
 // TODO: move to globals
 const auto GLOBAL_UP_DIR = glm::vec3{0.f, 1.f, 0.f};
 const auto GLOBAL_FRONT_DIR = glm::vec3{0.f, 0.f, 1.f};
+const auto GLOBAL_RIGHT_DIR = glm::vec3{1.f, 0.f, 0.f};
 }
 
 void Camera::init(float fovX, float zNear, float zFar, float aspectRatio)
@@ -41,4 +42,14 @@ glm::mat4 Camera::getView() const
 glm::mat4 Camera::getViewProj() const
 {
     return projection * getView();
+}
+
+glm::vec3 Camera::getFront() const
+{
+    return heading * GLOBAL_FRONT_DIR;
+}
+
+glm::vec3 Camera::getRight() const
+{
+    return heading * GLOBAL_RIGHT_DIR;
 }

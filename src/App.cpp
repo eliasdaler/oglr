@@ -171,6 +171,28 @@ GPUMesh uploadMeshToGPU(const util::CPUMesh& cpuMesh)
     };
 }
 
+// getStickState({negX, posX}, {negY, posY})
+glm::vec2 getStickState(
+    std::pair<SDL_Scancode, SDL_Scancode> xAxis,
+    std::pair<SDL_Scancode, SDL_Scancode> yAxis)
+{
+    const Uint8* state = SDL_GetKeyboardState(nullptr);
+    glm::vec2 dir;
+    if (state[xAxis.first]) {
+        dir.x -= 1.f;
+    }
+    if (state[xAxis.second]) {
+        dir.x += 1.f;
+    }
+    if (state[yAxis.first]) {
+        dir.y -= 1.f;
+    }
+    if (state[yAxis.second]) {
+        dir.y += 1.f;
+    }
+    return dir;
+}
+
 }
 
 void App::start()
@@ -288,6 +310,7 @@ void App::init()
 
     // initial state
     glEnable(GL_DEPTH_TEST);
+    // glEnable(GL_BLEND);
 
     { // init camera
         const auto fovX = 45.f;
@@ -295,14 +318,21 @@ void App::init()
         const auto zFar = 1000.f;
         camera.init(fovX, zNear, zFar, (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT);
         camera.setPosition(glm::vec3{-5.f, 10.f, -50.0f});
-        camera.lookAt(glm::vec3{0.f, 2.f, 0.f});
+        // camera.lookAt(glm::vec3{0.f, 2.f, 0.f});
     }
 
     auto numObjectsToSpawn = dist(rng);
     numObjectsToSpawn = 10;
+    numObjectsToSpawn = 0;
     for (int i = 0; i < numObjectsToSpawn; ++i) {
         generateRandomObject();
     }
+
+    spawnCube({0.f, 0.f, 0.f});
+    spawnCube({0.f, 0.f, 2.5f});
+    spawnCube({0.f, 0.f, 5.f});
+
+    camera.setPosition({0.f, 0.5f, -10.f});
 
     // init lights
     sunlightColor = glm::vec3{0.65, 0.4, 0.3};
@@ -387,16 +417,61 @@ void App::run()
 
 void App::update(float dt)
 {
-    // rotate cube
+    handleFreeCameraControls(dt);
+
+    // rotate objects
     static const auto rotationSpeed = glm::radians(45.f);
     for (auto& object : objects) {
-        object.transform.heading *= glm::angleAxis(rotationSpeed * dt, glm::vec3{1.f, 1.f, 0.f});
+        // object.transform.heading *= glm::angleAxis(rotationSpeed * dt, glm::vec3{1.f, 1.f, 0.f});
     }
 
     timer += dt;
     if (timer >= timeToSpawnNewCube) {
         timer = 0.f;
         generateRandomObject();
+    }
+}
+
+void App::handleFreeCameraControls(float dt)
+{
+    const auto GLOBAL_UP_DIR = glm::vec3{0.f, 1.f, 0.f};
+    const auto GLOBAL_FRONT_DIR = glm::vec3{0.f, 0.f, 1.f};
+    const auto GLOBAL_RIGHT_DIR = glm::vec3{1.f, 0.f, 0.f};
+
+    { // move
+        const glm::vec3 cameraWalkSpeed = {10.f, 5.f, 10.f};
+
+        const glm::vec2 moveStickState =
+            getStickState({SDL_SCANCODE_A, SDL_SCANCODE_D}, {SDL_SCANCODE_W, SDL_SCANCODE_S});
+
+        const glm::vec2 moveUpDownState =
+            getStickState({SDL_SCANCODE_Q, SDL_SCANCODE_E}, {SDL_SCANCODE_W, SDL_SCANCODE_S});
+
+        glm::vec3 moveVector{};
+        moveVector += camera.getFront() * (-moveStickState.y);
+        moveVector += camera.getRight() * (-moveStickState.x);
+        moveVector += GLOBAL_UP_DIR * moveUpDownState.x;
+
+        auto pos = camera.getPosition();
+        pos += moveVector * cameraWalkSpeed * dt;
+        camera.setPosition(pos);
+    }
+
+    { // rotate view
+        const float rotateYawSpeed{1.75f};
+        const float rotatePitchSpeed{1.f};
+
+        const glm::vec2 rotateStickState = getStickState(
+            {SDL_SCANCODE_LEFT, SDL_SCANCODE_RIGHT}, {SDL_SCANCODE_UP, SDL_SCANCODE_DOWN});
+
+        glm::vec2 rotationVelocity;
+        rotationVelocity.x = -rotateStickState.x * rotateYawSpeed;
+        rotationVelocity.y = rotateStickState.y * rotatePitchSpeed;
+
+        const auto dYaw = glm::angleAxis(rotationVelocity.x * dt, GLOBAL_UP_DIR);
+        const auto dPitch = glm::angleAxis(rotationVelocity.y * dt, GLOBAL_RIGHT_DIR);
+        const auto newHeading = dYaw * camera.getHeading() * dPitch;
+        camera.setHeading(newHeading);
     }
 }
 
@@ -497,5 +572,15 @@ void App::generateRandomObject()
     };
     object.transform.position.x = dist2(rng);
     object.transform.position.y = dist2(rng);
+    objects.push_back(object);
+}
+
+void App::spawnCube(const glm::vec3& pos)
+{
+    ObjectData object{
+        .meshIdx = 0,
+        .textureIdx = chooseRandomElement(textures, rng),
+    };
+    object.transform.position = pos;
     objects.push_back(object);
 }

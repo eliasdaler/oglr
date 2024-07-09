@@ -54,4 +54,6 @@ void main()
     vec3 ambientColor = ambientColorAndIntensity.rgb;
     float ambientIntensity = ambientColorAndIntensity.a;
     fragColor.rgb += diffuse * ambientColor * ambientIntensity;
+
+    fragColor.a = 0.5;
 }

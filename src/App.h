@@ -50,7 +50,10 @@ private:
     void uploadSceneData();
     void render();
 
+    void handleFreeCameraControls(float dt);
+
     void generateRandomObject();
+    void spawnCube(const glm::vec3& pos);
 
     SDL_Window* window{nullptr};
     SDL_GLContext glContext{nullptr};
@@ -81,7 +84,7 @@ private:
     Camera camera;
 
     float timer{0.f};
-    float timeToSpawnNewCube{2.0f};
+    float timeToSpawnNewCube{200.0f};
 
     struct GlobalSceneData {
         glm::mat4 projection;
@@ -108,4 +111,6 @@ private:
 
     glm::vec3 ambientColor;
     float ambientIntensity;
+
+    glm::vec3 cameraVelocity;
 };

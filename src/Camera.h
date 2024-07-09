@@ -11,7 +11,7 @@ public:
     void setPosition(const glm::vec3& p) { position = p; }
     const glm::vec3& getPosition() const { return position; }
 
-    void setHeading(const glm::quat& q) { heading = q; }
+    void setHeading(const glm::quat& q) { heading = glm::normalize(q); }
     const glm::quat& getHeading() const { return heading; }
 
     const glm::mat4& getProjection() const { return projection; }
@@ -19,6 +19,9 @@ public:
     glm::mat4 getViewProj() const;
 
     void lookAt(const glm::vec3& point);
+
+    glm::vec3 getFront() const;
+    glm::vec3 getRight() const;
 
 private:
     glm::vec3 position;
