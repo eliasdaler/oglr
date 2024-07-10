@@ -6,6 +6,7 @@
 #include "ImageLoader.h"
 
 #include <cmath>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 
@@ -63,15 +64,47 @@ GLuint allocateBuffer(std::size_t size, const char* debugName)
     return buffer;
 }
 
-int getUBOArrayElementSize(std::size_t elementSize, int uboAlignment)
+int getAlignedSize(std::size_t elementSize, std::size_t align)
 {
-    if (elementSize < uboAlignment) {
-        return uboAlignment;
+    if (elementSize < align) {
+        return align;
     }
-    if (elementSize % uboAlignment == 0) {
+    if (elementSize % align == 0) {
         return elementSize;
     }
-    return ((elementSize / uboAlignment) + 1) * uboAlignment;
+    return ((elementSize / align) + 1) * align;
+}
+
+void BumpAllocator::setAlignment(const std::size_t a)
+{
+    assert(a != 0);
+    align = a;
+}
+
+std::size_t BumpAllocator::append(void* data, std::size_t size)
+{
+    while (currentOffset + size > allocatedData.size()) {
+        resize(allocatedData.size() * 2);
+    }
+
+    assert(align != 0 && "alignment not set");
+    std::memcpy(allocatedData.data() + currentOffset, data, size);
+
+    const auto prevOffset = currentOffset;
+    currentOffset += getAlignedSize(size, align);
+    return prevOffset;
+}
+
+void BumpAllocator::clear()
+{
+    currentOffset = 0;
+}
+
+void BumpAllocator::resize(const std::size_t newSize)
+{
+    if (newSize > allocatedData.size()) {
+        allocatedData.resize(newSize);
+    }
 }
 
 void setDebugLabel(GLenum identifier, GLuint name, std::string_view label)

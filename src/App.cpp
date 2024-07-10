@@ -162,10 +162,14 @@ void App::init()
     }
 
     { // allocate scene data buffer
-        globalSceneDataSize = gfx::getUBOArrayElementSize(sizeof(GlobalSceneData), uboAlignment);
-        perObjectDataElementSize = gfx::getUBOArrayElementSize(sizeof(PerObjectData), uboAlignment);
+        const auto globalSceneDataSize = gfx::getAlignedSize(sizeof(GlobalSceneData), uboAlignment);
+        const auto perObjectDataElementSize =
+            gfx::getAlignedSize(sizeof(PerObjectData), uboAlignment);
         allocatedBufferSize = globalSceneDataSize + perObjectDataElementSize * 100;
         sceneDataBuffer = gfx::allocateBuffer(allocatedBufferSize, "sceneData");
+
+        sceneData.setAlignment(uboAlignment);
+        sceneData.resize(allocatedBufferSize);
     }
 
     // we still need an empty VAO even for vertex pulling
@@ -377,12 +381,11 @@ void App::handleFreeCameraControls(float dt)
 
 void App::render()
 {
+    generateDrawList();
+
     glClearColor(97.f / 255.f, 120.f / 255.f, 159.f / 255.f, 1.0f);
     glClearDepth(1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    sortSceneObjects();
-    uploadSceneData();
 
     glBindVertexArray(vao);
     { // render objects
@@ -412,71 +415,21 @@ void App::render()
     SDL_GL_SwapWindow(window);
 }
 
-void App::uploadSceneData()
-{
-    sceneData.clear();
-    const auto projection = camera.getProjection();
-    const auto view = camera.getView();
-
-    const auto sceneDataSize = globalSceneDataSize + perObjectDataElementSize * drawList.size();
-    sceneData.resize(sceneDataSize);
-
-    int currentOffset = 0;
-
-    // global scene data
-    const auto d = GlobalSceneData{
-        .projection = projection,
-        .view = view,
-        .cameraPos = glm::vec4{camera.getPosition(), 0.f},
-        .sunlightColorAndIntensity = glm::vec4{sunlightColor, sunlightIntensity},
-        .sunlightDirAndUnused = glm::vec4{sunlightDir, 0.f},
-        .ambientColorAndIntensity = glm::vec4{ambientColor, ambientIntensity},
-    };
-    std::memcpy(sceneData.data() + currentOffset, &d, sizeof(GlobalSceneData));
-    currentOffset += globalSceneDataSize;
-
-    // per object data
-    for (const auto& drawInfo : drawList) {
-        const auto& object = objects[drawInfo.objectIdx];
-        const auto d = PerObjectData{
-            .model = object.transform.asMatrix(),
-            .props = glm::vec4{object.alpha, 0.f, 0.f, 0.f},
-        };
-        std::memcpy(sceneData.data() + currentOffset, &d, sizeof(PerObjectData));
-        currentOffset += perObjectDataElementSize;
-    }
-
-    // reallocate buffer if needed
-    // const auto sceneDataSize = sizeof(PerObjectData) * sceneData.size();
-    if (sceneDataSize > allocatedBufferSize) {
-        while (sceneDataSize > allocatedBufferSize) {
-            allocatedBufferSize *= 2;
-        }
-        glDeleteBuffers(1, &sceneDataBuffer);
-        sceneDataBuffer = gfx::allocateBuffer(allocatedBufferSize, "sceneData");
-        std::cout << "Reallocated UBO, new size = " << allocatedBufferSize << std::endl;
-    }
-
-    // upload new data
-    glNamedBufferSubData(sceneDataBuffer, 0, sceneDataSize, sceneData.data());
-}
-
-void App::sortSceneObjects()
+void App::generateDrawList()
 {
     drawList.clear();
-    std::size_t uboIdx = 0;
     for (std::size_t i = 0; i < objects.size(); ++i) {
         const auto& object = objects[i];
         if (object.alpha != 0.f) {
             const auto distToCamera = glm::length(camera.getPosition() - object.transform.position);
             drawList.push_back(DrawInfo{
                 .objectIdx = i,
-                .uboIdx = uboIdx,
                 .distToCamera = distToCamera,
             });
-            ++uboIdx;
         }
     }
+
+    uploadSceneData();
 
     opaqueDrawList.clear();
     transparentDrawList.clear();
@@ -492,6 +445,47 @@ void App::sortSceneObjects()
     sortDrawList(transparentDrawList, SortOrder::BackToFront);
 }
 
+void App::uploadSceneData()
+{
+    sceneData.clear();
+
+    // global scene data
+    const auto projection = camera.getProjection();
+    const auto view = camera.getView();
+    const auto d = GlobalSceneData{
+        .projection = projection,
+        .view = view,
+        .cameraPos = glm::vec4{camera.getPosition(), 0.f},
+        .sunlightColorAndIntensity = glm::vec4{sunlightColor, sunlightIntensity},
+        .sunlightDirAndUnused = glm::vec4{sunlightDir, 0.f},
+        .ambientColorAndIntensity = glm::vec4{ambientColor, ambientIntensity},
+    };
+    sceneData.append(d);
+
+    // per object data
+    for (auto& drawInfo : drawList) {
+        const auto& object = objects[drawInfo.objectIdx];
+        const auto d = PerObjectData{
+            .model = object.transform.asMatrix(),
+            .props = glm::vec4{object.alpha, 0.f, 0.f, 0.f},
+        };
+        drawInfo.uboOffset = sceneData.append(d);
+    }
+
+    // reallocate buffer if needed
+    // const auto sceneDataSize = sizeof(PerObjectData) * sceneData.size();
+    if (sceneData.getData().size() > allocatedBufferSize) {
+        allocatedBufferSize = sceneData.getData().size();
+        glDeleteBuffers(1, &sceneDataBuffer);
+        sceneDataBuffer = gfx::allocateBuffer(allocatedBufferSize, "sceneData");
+        std::cout << "Reallocated UBO, new size = " << allocatedBufferSize << std::endl;
+    }
+
+    // upload new data
+    glNamedBufferSubData(
+        sceneDataBuffer, 0, sceneData.getData().size(), sceneData.getData().data());
+}
+
 void App::renderSceneObjects(const std::vector<DrawInfo>& drawList)
 {
     for (const auto& drawInfo : drawList) {
@@ -504,7 +498,7 @@ void App::renderSceneObjects(const std::vector<DrawInfo>& drawList)
             GL_UNIFORM_BUFFER,
             PER_OBJECT_DATA_BINDING,
             sceneDataBuffer,
-            globalSceneDataSize + drawInfo.uboIdx * perObjectDataElementSize,
+            drawInfo.uboOffset,
             sizeof(PerObjectData));
 
         // glBindTextureUnit(0, textures[object.textureIdx]);
@@ -538,7 +532,7 @@ void App::generateRandomObject()
     // decide if object should be opaque or not at random
     std::uniform_int_distribution<int> opaqueDist{0, 1};
     bool isOpaque = (bool)opaqueDist(rng);
-    object.alpha = isOpaque ? 1.0 : 0.5f;
+    object.alpha = isOpaque ? 1.0 : 0.777f;
 
     objects.push_back(object);
 }

@@ -6,6 +6,7 @@
 
 #include "Camera.h"
 #include "GPUMesh.h"
+#include "GraphicsUtil.h"
 
 #include <random>
 
@@ -36,8 +37,8 @@ struct ObjectData {
 
 struct DrawInfo {
     std::size_t objectIdx;
-    std::size_t uboIdx;
-    float distToCamera{0.f};
+    std::size_t uboOffset;
+    float distToCamera;
 };
 
 class App {
@@ -49,10 +50,10 @@ private:
     void cleanup();
     void run();
     void update(float dt);
-    void uploadSceneData();
     void render();
 
-    void sortSceneObjects();
+    void generateDrawList();
+    void uploadSceneData();
     void renderSceneObjects(const std::vector<DrawInfo>& drawList);
 
     void handleFreeCameraControls(float dt);
@@ -83,7 +84,7 @@ private:
     Camera camera;
 
     float timer{0.f};
-    float timeToSpawnNewCube{1000.25f};
+    float timeToSpawnNewCube{0.25f};
 
     struct GlobalSceneData {
         glm::mat4 projection;
@@ -101,9 +102,8 @@ private:
     std::uint32_t allocatedBufferSize{0};
 
     int uboAlignment{4};
-    int globalSceneDataSize{};
-    int perObjectDataElementSize{};
-    std::vector<std::uint8_t> sceneData;
+
+    gfx::BumpAllocator sceneData;
 
     glm::vec3 sunlightColor;
     float sunlightIntensity;

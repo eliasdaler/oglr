@@ -1,6 +1,8 @@
 #pragma once
 
 #include <filesystem>
+#include <span>
+#include <vector>
 
 #include <glad/gl.h>
 
@@ -12,11 +14,36 @@ namespace gfx
 GLuint compileShader(const std::filesystem::path& path, GLenum shaderType);
 
 GLuint allocateBuffer(std::size_t size, const char* debugName);
-// Returns a size of an element which it should have to respect uboAlignment
+// Returns a size of an element which it should have to respect alignment of "align" bytes
 // For example:
-// * getUBOArrayElementSize(192, 256) == 256
-// * getUBOArrayElementSize(480, 256) == 512
-int getUBOArrayElementSize(std::size_t elementSize, int uboAlignment);
+// * getAlignedSize(192, 256) == 256
+// * getAlignedSize(480, 256) == 512
+int getAlignedSize(std::size_t elementSize, std::size_t align);
+
+class BumpAllocator {
+public:
+    void setAlignment(const std::size_t a);
+
+    template<typename T>
+    std::size_t append(const T& obj)
+    {
+        return append((void*)(&obj), sizeof(T));
+    }
+
+    // returns offset into allocatedData
+    std::size_t append(void* data, std::size_t size);
+
+    void resize(const std::size_t allocatedSize);
+    void clear();
+
+    std::span<std::uint8_t> getData() { return {allocatedData.begin(), currentOffset}; }
+
+private:
+    std::vector<std::uint8_t> allocatedData;
+    std::size_t align;
+
+    std::size_t currentOffset{0};
+};
 
 // debug stuff
 void setDebugLabel(GLenum identifier, GLuint name, std::string_view label);
