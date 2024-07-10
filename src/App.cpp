@@ -63,15 +63,18 @@ enum class SortOrder {
 void sortObjects(
     const Camera& camera,
     const std::vector<ObjectData>& objects,
+    const std::vector<std::size_t>& objectsToDraw,
     std::vector<std::size_t>& sortedIdx,
     SortOrder sortOrder)
 {
     std::sort(
         sortedIdx.begin(),
         sortedIdx.end(),
-        [&objects, &camera, sortOrder](std::size_t a, std::size_t b) {
-            const auto lengthA = glm::length(camera.getPosition() - objects[a].transform.position);
-            const auto lengthB = glm::length(camera.getPosition() - objects[b].transform.position);
+        [&objects, &objectsToDraw, &camera, sortOrder](std::size_t a, std::size_t b) {
+            const auto& objA = objects[objectsToDraw[a]];
+            const auto& objB = objects[objectsToDraw[b]];
+            const auto lengthA = glm::length(camera.getPosition() - objA.transform.position);
+            const auto lengthB = glm::length(camera.getPosition() - objB.transform.position);
             if (sortOrder == SortOrder::BackToFront) {
                 return lengthA > lengthB;
             }
@@ -220,10 +223,15 @@ void App::init()
         generateRandomObject();
     }
 
-    spawnCube({0.f, 0.f, 0.f}, 0, 1);
+    /* spawnCube({0.f, 0.f, 0.f}, 0, 1);
     spawnCube({0.f, 0.f, 2.5f}, 1, 0.5);
     spawnCube({0.f, 0.f, 5.0f}, 0, 0.5);
-    spawnCube({0.f, 0.f, 7.5f}, 0, 1);
+    spawnCube({0.f, 0.f, 7.5f}, 0, 1); */
+
+    spawnCube({0.f, 0.f, 0.f}, 0, 0.f, -0.5f);
+    spawnCube({0.f, 0.f, 2.5f}, 1, 0.777f, 0.f);
+    spawnCube({0.f, 0.f, 5.0f}, 0, 0.f, -1.5f);
+    spawnCube({0.f, 0.f, 7.5f}, 0, 0.f, -1.25f);
 
     camera.setPosition({0.f, 0.5f, -10.f});
 
@@ -316,6 +324,13 @@ void App::update(float dt)
     static const auto rotationSpeed = glm::radians(45.f);
     for (auto& object : objects) {
         // object.transform.heading *= glm::angleAxis(rotationSpeed * dt, glm::vec3{1.f, 1.f, 0.f});
+    }
+
+    for (auto& object : objects) {
+        if (object.alpha != 1.f && object.alpha != 0.777f) {
+            object.animAlpha += 0.5f * dt;
+            object.alpha = std::clamp(object.animAlpha, 0.f, 1.f);
+        }
     }
 
     timer += dt;
@@ -411,7 +426,8 @@ void App::uploadSceneData()
     const auto projection = camera.getProjection();
     const auto view = camera.getView();
 
-    const auto sceneDataSize = globalSceneDataSize + perObjectDataElementSize * objects.size();
+    const auto sceneDataSize =
+        globalSceneDataSize + perObjectDataElementSize * objectsToDraw.size();
     sceneData.resize(sceneDataSize);
 
     int currentOffset = 0;
@@ -429,7 +445,8 @@ void App::uploadSceneData()
     currentOffset += globalSceneDataSize;
 
     // per object data
-    for (const auto& object : objects) {
+    for (const auto& objectIdx : objectsToDraw) {
+        const auto& object = objects[objectIdx];
         const auto d = PerObjectData{
             .model = object.transform.asMatrix(),
             .props = glm::vec4{object.alpha, 0.f, 0.f, 0.f},
@@ -455,27 +472,36 @@ void App::uploadSceneData()
 
 void App::sortSceneObjects()
 {
+    objectsToDraw.clear();
+    for (std::size_t i = 0; i < objects.size(); ++i) {
+        if (objects[i].alpha != 0.f) {
+            objectsToDraw.push_back(i);
+        }
+    }
+
     opaqueObjects.clear();
     transparentObjects.clear();
 
-    for (std::size_t i = 0; i < objects.size(); ++i) {
-        if (objects[i].alpha == 1.f) {
+    for (std::size_t i = 0; i < objectsToDraw.size(); ++i) {
+        if (objects[objectsToDraw[i]].alpha == 1.f) {
             opaqueObjects.push_back(i);
         } else {
             transparentObjects.push_back(i);
         }
     }
 
-    sortObjects(camera, objects, opaqueObjects, SortOrder::FrontToBack);
-    sortObjects(camera, objects, transparentObjects, SortOrder::BackToFront);
+    sortObjects(camera, objects, objectsToDraw, opaqueObjects, SortOrder::FrontToBack);
+    sortObjects(camera, objects, objectsToDraw, transparentObjects, SortOrder::BackToFront);
 }
 
 void App::renderSceneObjects(const std::vector<std::size_t>& objectIndices)
 {
-    for (std::size_t i = 0; i < objectIndices.size(); ++i) {
-        auto objectIdx = objectIndices[i];
+    for (const auto& drawIdx : objectIndices) {
+        const auto objectIdx = objectsToDraw[drawIdx];
+
         const auto& object = objects[objectIdx];
         const auto& mesh = meshes[object.meshIdx];
+
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VERTEX_DATA_BINDING, mesh.vertexBuffer);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.indexBuffer);
 
@@ -483,10 +509,11 @@ void App::renderSceneObjects(const std::vector<std::size_t>& objectIndices)
             GL_UNIFORM_BUFFER,
             PER_OBJECT_DATA_BINDING,
             sceneDataBuffer,
-            globalSceneDataSize + objectIdx * perObjectDataElementSize,
+            globalSceneDataSize + drawIdx * perObjectDataElementSize,
             sizeof(PerObjectData));
 
-        glBindTextureUnit(0, textures[object.textureIdx]);
+        // glBindTextureUnit(0, textures[object.textureIdx]);
+        glBindTextureUnit(0, textures[object.alpha != 1.f ? 0 : 1]);
         glDrawElements(GL_TRIANGLES, mesh.numIndices, GL_UNSIGNED_INT, 0);
     }
 }
@@ -521,9 +548,14 @@ void App::generateRandomObject()
     objects.push_back(object);
 }
 
-void App::spawnCube(const glm::vec3& pos, std::size_t textureIdx, float alpha)
+void App::spawnCube(const glm::vec3& pos, std::size_t textureIdx, float alpha, float startAnimAlpha)
 {
-    ObjectData object{.meshIdx = 0, .textureIdx = textureIdx, .alpha = alpha};
+    ObjectData object{
+        .meshIdx = 0,
+        .textureIdx = textureIdx,
+        .alpha = alpha,
+        .animAlpha = startAnimAlpha,
+    };
     object.transform.position = pos;
     objects.push_back(object);
 }

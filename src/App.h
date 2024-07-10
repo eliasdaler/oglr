@@ -31,6 +31,7 @@ struct ObjectData {
     std::size_t meshIdx{}; // index into "meshes" array
     std::size_t textureIdx{}; // index into "textures" array
     float alpha{1.f};
+    float animAlpha{1.f};
 };
 
 class App {
@@ -51,7 +52,7 @@ private:
     void handleFreeCameraControls(float dt);
 
     void generateRandomObject();
-    void spawnCube(const glm::vec3& pos, std::size_t textureIdx, float alpha);
+    void spawnCube(const glm::vec3& pos, std::size_t textureIdx, float alpha, float startAnimAlpha);
 
     SDL_Window* window{nullptr};
     SDL_GLContext glContext{nullptr};
@@ -76,7 +77,7 @@ private:
     Camera camera;
 
     float timer{0.f};
-    float timeToSpawnNewCube{0.25f};
+    float timeToSpawnNewCube{1000.25f};
 
     struct GlobalSceneData {
         glm::mat4 projection;
@@ -107,6 +108,7 @@ private:
 
     glm::vec3 cameraVelocity;
 
-    std::vector<std::size_t> opaqueObjects;
-    std::vector<std::size_t> transparentObjects;
+    std::vector<std::size_t> objectsToDraw; // indices into objects array
+    std::vector<std::size_t> opaqueObjects; // indices into objectsToDraw array
+    std::vector<std::size_t> transparentObjects; // indices into objectsToDraw array
 };
