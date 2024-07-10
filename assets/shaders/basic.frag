@@ -19,6 +19,12 @@ layout (binding = 0, std140) uniform GlobalSceneData
     vec4 ambientColorAndIntensity;
 };
 
+layout (binding = 1, std140) uniform PerObjectData
+{
+    mat4 model;
+    vec4 props; // x - alpha, yzw - unused
+};
+
 vec3 blinnPhongBRDF(vec3 diffuse, vec3 n, vec3 v, vec3 l, vec3 h) {
     vec3 Fd = diffuse;
 
@@ -55,6 +61,5 @@ void main()
     float ambientIntensity = ambientColorAndIntensity.a;
     fragColor.rgb += diffuse * ambientColor * ambientIntensity;
 
-    fragColor.a = 1.0;
-    fragColor.a = 0.9;
+    fragColor.a = props.x;
 }

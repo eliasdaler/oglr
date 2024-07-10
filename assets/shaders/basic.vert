@@ -21,6 +21,7 @@ layout (binding = 0, std140) uniform GlobalSceneData
 layout (binding = 1, std140) uniform PerObjectData
 {
     mat4 model;
+    vec4 props; // x - alpha, yzw - unused
 };
 
 layout(binding = 2, std430) readonly buffer VertexData {

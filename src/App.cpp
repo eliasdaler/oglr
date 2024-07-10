@@ -193,6 +193,37 @@ glm::vec2 getStickState(
     return dir;
 }
 
+enum class SortOrder {
+    FrontToBack,
+    BackToFront,
+};
+
+void sortObjects(
+    const Camera& camera,
+    const std::vector<ObjectData>& objects,
+    std::vector<std::size_t>& sortedIdx,
+    SortOrder sortOrder)
+{
+    std::sort(
+        sortedIdx.begin(),
+        sortedIdx.end(),
+        [&objects, &camera, sortOrder](std::size_t a, std::size_t b) {
+            const auto lengthA = glm::length(camera.getPosition() - objects[a].transform.position);
+            const auto lengthB = glm::length(camera.getPosition() - objects[b].transform.position);
+            if (sortOrder == SortOrder::BackToFront) {
+                return lengthA > lengthB;
+            }
+            return lengthA < lengthB;
+        });
+}
+
+struct GLDebugGroup {
+    GLDebugGroup(const char* name) { glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, name); }
+    ~GLDebugGroup() { glPopDebugGroup(); }
+};
+
+#define GL_DEBUG_GROUP(x) GLDebugGroup g{x};
+
 }
 
 void App::start()
@@ -313,7 +344,6 @@ void App::init()
     glClear(GL_DEPTH_BUFFER_BIT);
 
     glEnable(GL_DEPTH_TEST);
-    glDepthMask(GL_FALSE);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -337,9 +367,10 @@ void App::init()
         generateRandomObject();
     }
 
-    spawnCube({0.f, 0.f, 0.f}, 0);
-    spawnCube({0.f, 0.f, 2.5f}, 1);
-    spawnCube({0.f, 0.f, 5.0f}, 0);
+    spawnCube({0.f, 0.f, 0.f}, 0, 1);
+    spawnCube({0.f, 0.f, 2.5f}, 1, 0.5);
+    spawnCube({0.f, 0.f, 5.0f}, 0, 0.5);
+    spawnCube({0.f, 0.f, 7.5f}, 0, 1);
 
     camera.setPosition({0.f, 0.5f, -10.f});
 
@@ -490,6 +521,7 @@ void App::render()
     glClearDepth(1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    sortSceneObjects();
     uploadSceneData();
 
     glBindVertexArray(vao);
@@ -506,32 +538,13 @@ void App::render()
 
         glUseProgram(shaderProgram);
 
-        // sort by distance to ther camera (decreasing)
-        std::vector<std::size_t> sortedIdx(objects.size());
-        std::iota(sortedIdx.begin(), sortedIdx.end(), 0);
-        std::sort(sortedIdx.begin(), sortedIdx.end(), [this](std::size_t a, std::size_t b) {
-            const auto lengthA = glm::length(camera.getPosition() - objects[a].transform.position);
-            const auto lengthB = glm::length(camera.getPosition() - objects[b].transform.position);
-            return lengthA > lengthB;
-        });
-
-        // draw front to back
-        for (std::size_t i = 0; i < sortedIdx.size(); ++i) {
-            auto objectIdx = sortedIdx[i];
-            const auto& object = objects[objectIdx];
-            const auto& mesh = meshes[object.meshIdx];
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VERTEX_DATA_BINDING, mesh.vertexBuffer);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.indexBuffer);
-
-            glBindBufferRange(
-                GL_UNIFORM_BUFFER,
-                PER_OBJECT_DATA_BINDING,
-                sceneDataBuffer,
-                globalSceneDataSize + objectIdx * perObjectDataElementSize,
-                sizeof(PerObjectData));
-
-            glBindTextureUnit(0, textures[object.textureIdx]);
-            glDrawElements(GL_TRIANGLES, mesh.numIndices, GL_UNSIGNED_INT, 0);
+        {
+            GL_DEBUG_GROUP("opaque pass");
+            renderSceneObjects(opaqueObjects);
+        }
+        {
+            GL_DEBUG_GROUP("transparent pass");
+            renderSceneObjects(transparentObjects);
         }
     }
 
@@ -565,6 +578,7 @@ void App::uploadSceneData()
     for (const auto& object : objects) {
         const auto d = PerObjectData{
             .model = object.transform.asMatrix(),
+            .props = glm::vec4{object.alpha, 0.f, 0.f, 0.f},
         };
         std::memcpy(sceneData.data() + currentOffset, &d, sizeof(PerObjectData));
         currentOffset += perObjectDataElementSize;
@@ -585,6 +599,44 @@ void App::uploadSceneData()
     glNamedBufferSubData(sceneDataBuffer, 0, sceneDataSize, sceneData.data());
 }
 
+void App::sortSceneObjects()
+{
+    opaqueObjects.clear();
+    transparentObjects.clear();
+
+    for (std::size_t i = 0; i < objects.size(); ++i) {
+        if (objects[i].alpha == 1.f) {
+            opaqueObjects.push_back(i);
+        } else {
+            transparentObjects.push_back(i);
+        }
+    }
+
+    sortObjects(camera, objects, opaqueObjects, SortOrder::FrontToBack);
+    sortObjects(camera, objects, transparentObjects, SortOrder::BackToFront);
+}
+
+void App::renderSceneObjects(const std::vector<std::size_t>& objectIndices)
+{
+    for (std::size_t i = 0; i < objectIndices.size(); ++i) {
+        auto objectIdx = objectIndices[i];
+        const auto& object = objects[objectIdx];
+        const auto& mesh = meshes[object.meshIdx];
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VERTEX_DATA_BINDING, mesh.vertexBuffer);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.indexBuffer);
+
+        glBindBufferRange(
+            GL_UNIFORM_BUFFER,
+            PER_OBJECT_DATA_BINDING,
+            sceneDataBuffer,
+            globalSceneDataSize + objectIdx * perObjectDataElementSize,
+            sizeof(PerObjectData));
+
+        glBindTextureUnit(0, textures[object.textureIdx]);
+        glDrawElements(GL_TRIANGLES, mesh.numIndices, GL_UNSIGNED_INT, 0);
+    }
+}
+
 void App::generateRandomObject()
 {
     ObjectData object{
@@ -596,12 +648,9 @@ void App::generateRandomObject()
     objects.push_back(object);
 }
 
-void App::spawnCube(const glm::vec3& pos, std::size_t textureIdx)
+void App::spawnCube(const glm::vec3& pos, std::size_t textureIdx, float alpha)
 {
-    ObjectData object{
-        .meshIdx = 0,
-        .textureIdx = textureIdx,
-    };
+    ObjectData object{.meshIdx = 0, .textureIdx = textureIdx, .alpha = alpha};
     object.transform.position = pos;
     objects.push_back(object);
 }

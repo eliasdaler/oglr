@@ -38,6 +38,13 @@ struct GPUMesh {
     std::uint32_t numIndices{};
 };
 
+struct ObjectData {
+    Transform transform;
+    std::size_t meshIdx{}; // index into "meshes" array
+    std::size_t textureIdx{}; // index into "textures" array
+    float alpha{1.f};
+};
+
 class App {
 public:
     void start();
@@ -50,10 +57,13 @@ private:
     void uploadSceneData();
     void render();
 
+    void sortSceneObjects();
+    void renderSceneObjects(const std::vector<std::size_t>& objectIndices);
+
     void handleFreeCameraControls(float dt);
 
     void generateRandomObject();
-    void spawnCube(const glm::vec3& pos, std::size_t textureIdx);
+    void spawnCube(const glm::vec3& pos, std::size_t textureIdx, float alpha);
 
     SDL_Window* window{nullptr};
     SDL_GLContext glContext{nullptr};
@@ -74,11 +84,6 @@ private:
     std::vector<GPUMesh> meshes;
     std::vector<std::uint32_t> textures;
 
-    struct ObjectData {
-        Transform transform;
-        std::size_t meshIdx{}; // index into "meshes" array
-        std::size_t textureIdx{}; // index into "textures" array
-    };
     std::vector<ObjectData> objects;
 
     Camera camera;
@@ -96,6 +101,7 @@ private:
     };
     struct PerObjectData {
         glm::mat4 model;
+        glm::vec4 props; // x - alpha, yzw - unused
     };
     std::uint32_t sceneDataBuffer{};
     std::uint32_t allocatedBufferSize{0};
@@ -113,4 +119,7 @@ private:
     float ambientIntensity;
 
     glm::vec3 cameraVelocity;
+
+    std::vector<std::size_t> opaqueObjects;
+    std::vector<std::size_t> transparentObjects;
 };
