@@ -510,8 +510,8 @@ void App::generateRandomObject()
     auto zRot = glm::angleAxis(angleDist(rng), glm::vec3{0.f, 0.f, 1.f});
     object.transform.heading = zRot * xRot;
 
-    std::uniform_real_distribution<float> scaleDist{0.5f, 1.5f};
-    object.transform.scale = glm::vec3{scaleDist(rng)};
+    // std::uniform_real_distribution<float> scaleDist{0.5f, 1.5f};
+    // object.transform.scale = glm::vec3{scaleDist(rng)};
 
     // decide if object should be opaque or not at random
     std::uniform_int_distribution<int> opaqueDist{0, 1};
