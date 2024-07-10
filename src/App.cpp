@@ -60,28 +60,20 @@ enum class SortOrder {
     BackToFront,
 };
 
-void sortObjects(
-    const Camera& camera,
-    const std::vector<ObjectData>& objects,
-    const std::vector<std::size_t>& objectsToDraw,
-    std::vector<std::size_t>& sortedIdx,
-    SortOrder sortOrder)
+void sortDrawList(std::vector<DrawInfo>& drawList, SortOrder sortOrder)
 {
     std::sort(
-        sortedIdx.begin(),
-        sortedIdx.end(),
-        [&objects, &objectsToDraw, &camera, sortOrder](std::size_t a, std::size_t b) {
-            const auto& objA = objects[objectsToDraw[a]];
-            const auto& objB = objects[objectsToDraw[b]];
-            const auto lengthA = glm::length(camera.getPosition() - objA.transform.position);
-            const auto lengthB = glm::length(camera.getPosition() - objB.transform.position);
+        drawList.begin(),
+        drawList.end(),
+        [sortOrder](const DrawInfo& draw1, const DrawInfo& draw2) {
             if (sortOrder == SortOrder::BackToFront) {
-                return lengthA > lengthB;
+                return draw1.distToCamera > draw2.distToCamera;
             }
-            return lengthA < lengthB;
+            return draw1.distToCamera <= draw2.distToCamera;
         });
 }
-}
+
+} // end of anonymous namespace
 
 void App::start()
 {
@@ -408,12 +400,12 @@ void App::render()
 
         {
             GL_DEBUG_GROUP("opaque pass");
-            renderSceneObjects(opaqueObjects);
+            renderSceneObjects(opaqueDrawList);
         }
 
         {
             GL_DEBUG_GROUP("transparent pass");
-            renderSceneObjects(transparentObjects);
+            renderSceneObjects(transparentDrawList);
         }
     }
 
@@ -426,8 +418,7 @@ void App::uploadSceneData()
     const auto projection = camera.getProjection();
     const auto view = camera.getView();
 
-    const auto sceneDataSize =
-        globalSceneDataSize + perObjectDataElementSize * objectsToDraw.size();
+    const auto sceneDataSize = globalSceneDataSize + perObjectDataElementSize * drawList.size();
     sceneData.resize(sceneDataSize);
 
     int currentOffset = 0;
@@ -445,8 +436,8 @@ void App::uploadSceneData()
     currentOffset += globalSceneDataSize;
 
     // per object data
-    for (const auto& objectIdx : objectsToDraw) {
-        const auto& object = objects[objectIdx];
+    for (const auto& drawInfo : drawList) {
+        const auto& object = objects[drawInfo.objectIdx];
         const auto d = PerObjectData{
             .model = object.transform.asMatrix(),
             .props = glm::vec4{object.alpha, 0.f, 0.f, 0.f},
@@ -472,36 +463,40 @@ void App::uploadSceneData()
 
 void App::sortSceneObjects()
 {
-    objectsToDraw.clear();
+    drawList.clear();
+    std::size_t uboIdx = 0;
     for (std::size_t i = 0; i < objects.size(); ++i) {
-        if (objects[i].alpha != 0.f) {
-            objectsToDraw.push_back(i);
+        const auto& object = objects[i];
+        if (object.alpha != 0.f) {
+            const auto distToCamera = glm::length(camera.getPosition() - object.transform.position);
+            drawList.push_back(DrawInfo{
+                .objectIdx = i,
+                .uboIdx = uboIdx,
+                .distToCamera = distToCamera,
+            });
+            ++uboIdx;
         }
     }
 
-    opaqueObjects.clear();
-    transparentObjects.clear();
-
-    for (std::size_t i = 0; i < objectsToDraw.size(); ++i) {
-        if (objects[objectsToDraw[i]].alpha == 1.f) {
-            opaqueObjects.push_back(i);
+    opaqueDrawList.clear();
+    transparentDrawList.clear();
+    for (const auto& drawInfo : drawList) {
+        if (objects[drawInfo.objectIdx].alpha == 1.f) {
+            opaqueDrawList.push_back(drawInfo);
         } else {
-            transparentObjects.push_back(i);
+            transparentDrawList.push_back(drawInfo);
         }
     }
 
-    sortObjects(camera, objects, objectsToDraw, opaqueObjects, SortOrder::FrontToBack);
-    sortObjects(camera, objects, objectsToDraw, transparentObjects, SortOrder::BackToFront);
+    sortDrawList(opaqueDrawList, SortOrder::FrontToBack);
+    sortDrawList(transparentDrawList, SortOrder::BackToFront);
 }
 
-void App::renderSceneObjects(const std::vector<std::size_t>& objectIndices)
+void App::renderSceneObjects(const std::vector<DrawInfo>& drawList)
 {
-    for (const auto& drawIdx : objectIndices) {
-        const auto objectIdx = objectsToDraw[drawIdx];
-
-        const auto& object = objects[objectIdx];
+    for (const auto& drawInfo : drawList) {
+        const auto& object = objects[drawInfo.objectIdx];
         const auto& mesh = meshes[object.meshIdx];
-
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VERTEX_DATA_BINDING, mesh.vertexBuffer);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.indexBuffer);
 
@@ -509,7 +504,7 @@ void App::renderSceneObjects(const std::vector<std::size_t>& objectIndices)
             GL_UNIFORM_BUFFER,
             PER_OBJECT_DATA_BINDING,
             sceneDataBuffer,
-            globalSceneDataSize + drawIdx * perObjectDataElementSize,
+            globalSceneDataSize + drawInfo.uboIdx * perObjectDataElementSize,
             sizeof(PerObjectData));
 
         // glBindTextureUnit(0, textures[object.textureIdx]);

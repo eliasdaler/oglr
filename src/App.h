@@ -34,6 +34,12 @@ struct ObjectData {
     float animAlpha{1.f};
 };
 
+struct DrawInfo {
+    std::size_t objectIdx;
+    std::size_t uboIdx;
+    float distToCamera{0.f};
+};
+
 class App {
 public:
     void start();
@@ -47,7 +53,7 @@ private:
     void render();
 
     void sortSceneObjects();
-    void renderSceneObjects(const std::vector<std::size_t>& objectIndices);
+    void renderSceneObjects(const std::vector<DrawInfo>& drawList);
 
     void handleFreeCameraControls(float dt);
 
@@ -108,7 +114,7 @@ private:
 
     glm::vec3 cameraVelocity;
 
-    std::vector<std::size_t> objectsToDraw; // indices into objects array
-    std::vector<std::size_t> opaqueObjects; // indices into objectsToDraw array
-    std::vector<std::size_t> transparentObjects; // indices into objectsToDraw array
+    std::vector<DrawInfo> drawList;
+    std::vector<DrawInfo> opaqueDrawList;
+    std::vector<DrawInfo> transparentDrawList;
 };
