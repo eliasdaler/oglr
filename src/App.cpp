@@ -236,6 +236,27 @@ void App::init()
 
     ambientColor = glm::vec3{0.3, 0.65, 0.8};
     ambientIntensity = 0.2f;
+
+    frameStartState = gfx::GlobalState{
+        .depthTestEnabled = false,
+        .depthWriteEnabled = true,
+        .cullingEnabled = false,
+        .blendEnabled = false,
+    };
+
+    opaqueDrawState = gfx::GlobalState{
+        .depthTestEnabled = true,
+        .depthWriteEnabled = true,
+        .cullingEnabled = true,
+        .blendEnabled = false,
+    };
+
+    transparentDrawState = gfx::GlobalState{
+        .depthTestEnabled = true,
+        .depthWriteEnabled = false,
+        .cullingEnabled = true,
+        .blendEnabled = true,
+    };
 }
 
 void App::cleanup()
@@ -381,6 +402,8 @@ void App::render()
 {
     generateDrawList();
 
+    // clear default FBO color and depth
+    gfx::setGlobalState(frameStartState);
     glClearColor(97.f / 255.f, 120.f / 255.f, 159.f / 255.f, 1.0f);
     glClearDepth(1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -401,11 +424,17 @@ void App::render()
 
         {
             GL_DEBUG_GROUP("opaque pass");
+            gfx::setGlobalState(opaqueDrawState);
+            gfx::setGlobalState({
+                .depthWriteEnabled = true,
+                .blendEnabled = false,
+            });
             renderSceneObjects(opaqueDrawList);
         }
 
         {
             GL_DEBUG_GROUP("transparent pass");
+            gfx::setGlobalState(transparentDrawState);
             renderSceneObjects(transparentDrawList);
         }
     }

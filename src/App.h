@@ -118,4 +118,8 @@ private:
     std::vector<DrawInfo> drawList;
     std::vector<DrawInfo> opaqueDrawList;
     std::vector<DrawInfo> transparentDrawList;
+
+    gfx::GlobalState frameStartState;
+    gfx::GlobalState opaqueDrawState;
+    gfx::GlobalState transparentDrawState;
 };

@@ -181,4 +181,30 @@ GPUMesh uploadMeshToGPU(const CPUMesh& cpuMesh)
     };
 }
 
+void setGlobalState(const GlobalState& state)
+{
+    if (state.depthTestEnabled) {
+        glEnable(GL_DEPTH_TEST);
+    } else {
+        glDisable(GL_DEPTH_TEST);
+    }
+
+    glDepthMask(state.depthWriteEnabled ? GL_TRUE : GL_FALSE);
+
+    if (state.cullingEnabled) {
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_BACK); // TODO: allow to specify face?
+    } else {
+        glDisable(GL_CULL_FACE);
+    }
+
+    if (state.blendEnabled) {
+        glEnable(GL_BLEND);
+        // TODO: allow to specify blend func?
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    } else {
+        glDisable(GL_BLEND);
+    }
+}
+
 } // end of namespace gfx

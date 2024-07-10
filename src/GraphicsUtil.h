@@ -52,6 +52,16 @@ struct GLDebugGroup {
 // more high level functions
 GLuint loadTextureFromFile(const std::filesystem::path& path);
 GPUMesh uploadMeshToGPU(const CPUMesh& cpuMesh);
+
+struct GlobalState {
+    bool depthTestEnabled{true};
+    bool depthWriteEnabled{true};
+    bool cullingEnabled{true};
+    bool blendEnabled{false};
+};
+
+void setGlobalState(const GlobalState& state);
+
 }
 
 #define GL_DEBUG_GROUP(x) gfx::GLDebugGroup g{x};
