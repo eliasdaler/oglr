@@ -66,6 +66,10 @@ GLuint allocateBuffer(std::size_t size, const char* debugName)
 
 int getAlignedSize(std::size_t elementSize, std::size_t align)
 {
+    if (align == 0) {
+        return elementSize;
+    }
+
     if (elementSize < align) {
         return align;
     }
@@ -75,19 +79,12 @@ int getAlignedSize(std::size_t elementSize, std::size_t align)
     return ((elementSize / align) + 1) * align;
 }
 
-void BumpAllocator::setAlignment(const std::size_t a)
-{
-    assert(a != 0);
-    align = a;
-}
-
-std::size_t BumpAllocator::append(void* data, std::size_t size)
+std::size_t BumpAllocator::append(void* data, std::size_t size, std::size_t align)
 {
     while (currentOffset + size > allocatedData.size()) {
         resize(allocatedData.size() * 2);
     }
 
-    assert(align != 0 && "alignment not set");
     std::memcpy(allocatedData.data() + currentOffset, data, size);
 
     const auto prevOffset = currentOffset;

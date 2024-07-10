@@ -167,8 +167,6 @@ void App::init()
             gfx::getAlignedSize(sizeof(PerObjectData), uboAlignment);
         allocatedBufferSize = globalSceneDataSize + perObjectDataElementSize * 100;
         sceneDataBuffer = gfx::allocateBuffer(allocatedBufferSize, "sceneData");
-
-        sceneData.setAlignment(uboAlignment);
         sceneData.resize(allocatedBufferSize);
     }
 
@@ -396,7 +394,7 @@ void App::render()
             GL_UNIFORM_BUFFER,
             GLOBAL_SCENE_DATA_BINDING,
             sceneDataBuffer,
-            0,
+            sceneDataUboOffset,
             sizeof(GlobalSceneData));
 
         glUseProgram(shaderProgram);
@@ -460,7 +458,7 @@ void App::uploadSceneData()
         .sunlightDirAndUnused = glm::vec4{sunlightDir, 0.f},
         .ambientColorAndIntensity = glm::vec4{ambientColor, ambientIntensity},
     };
-    sceneData.append(d);
+    sceneDataUboOffset = sceneData.append(d, uboAlignment);
 
     // per object data
     for (auto& drawInfo : drawList) {
@@ -469,7 +467,7 @@ void App::uploadSceneData()
             .model = object.transform.asMatrix(),
             .props = glm::vec4{object.alpha, 0.f, 0.f, 0.f},
         };
-        drawInfo.uboOffset = sceneData.append(d);
+        drawInfo.uboOffset = sceneData.append(d, uboAlignment);
     }
 
     // reallocate buffer if needed

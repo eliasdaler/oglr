@@ -22,16 +22,14 @@ int getAlignedSize(std::size_t elementSize, std::size_t align);
 
 class BumpAllocator {
 public:
-    void setAlignment(const std::size_t a);
-
     template<typename T>
-    std::size_t append(const T& obj)
+    std::size_t append(const T& obj, std::size_t align = 0)
     {
         return append((void*)(&obj), sizeof(T));
     }
 
     // returns offset into allocatedData
-    std::size_t append(void* data, std::size_t size);
+    std::size_t append(void* data, std::size_t size, std::size_t align = 0);
 
     void resize(const std::size_t allocatedSize);
     void clear();
@@ -40,8 +38,6 @@ public:
 
 private:
     std::vector<std::uint8_t> allocatedData;
-    std::size_t align;
-
     std::size_t currentOffset{0};
 };
 

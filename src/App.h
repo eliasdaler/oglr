@@ -104,6 +104,7 @@ private:
     int uboAlignment{4};
 
     gfx::BumpAllocator sceneData;
+    std::size_t sceneDataUboOffset;
 
     glm::vec3 sunlightColor;
     float sunlightIntensity;
