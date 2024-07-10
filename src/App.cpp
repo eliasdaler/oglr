@@ -5,12 +5,11 @@
 
 #include <glad/gl.h>
 
-#include <fstream>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/compatibility.hpp> // lerp for vec3
 
 #include "GLDebugCallback.h"
-#include "ImageLoader.h"
+#include "GraphicsUtil.h"
 #include "Meshes.h"
 
 namespace
@@ -24,110 +23,6 @@ constexpr auto GLOBAL_SCENE_DATA_BINDING = 0;
 constexpr auto PER_OBJECT_DATA_BINDING = 1;
 constexpr auto VERTEX_DATA_BINDING = 2;
 
-void setDebugLabel(GLenum identifier, GLuint name, std::string_view label)
-{
-    glObjectLabel(identifier, name, label.size(), label.data());
-}
-
-std::string readFileToString(const std::filesystem::path& path)
-{
-    // open file
-    std::ifstream f(path);
-    if (!f.good()) {
-        std::cerr << "Failed to open shader file from " << path << std::endl;
-        return {};
-    }
-    // read whole file into string buffer
-    std::stringstream buffer;
-    buffer << f.rdbuf();
-    return buffer.str();
-}
-
-GLuint compileShader(const std::filesystem::path& path, GLenum shaderType)
-{
-    GLint shader = glCreateShader(shaderType);
-
-    const auto sourceStr = readFileToString(path);
-    const char* sourceCStr = sourceStr.c_str();
-    glShaderSource(shader, 1, &sourceCStr, NULL);
-
-    glCompileShader(shader);
-
-    // check for shader compile errors
-    int success{};
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        GLint logLength{};
-        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLength);
-        std::string log(logLength + 1, '\0');
-        glGetShaderInfoLog(shader, logLength, NULL, &log[0]);
-        std::cout << "Failed to compile shader:" << log << std::endl;
-        return 0;
-    }
-    setDebugLabel(GL_SHADER, shader, path.string());
-    return shader;
-}
-
-// will add ability to pass params later
-GLuint loadTextureFromFile(const std::filesystem::path& path)
-{
-    const auto imageData = util::loadImage(path);
-    if (!imageData.pixels) {
-        std::cout << "Failed to load image from " << path << "\n";
-        return 0;
-    }
-
-    GLuint texture;
-    glCreateTextures(GL_TEXTURE_2D, 1, &texture);
-
-    glTextureParameteri(texture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTextureParameteri(texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    // glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    // glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    const auto maxExtent = std::max(imageData.width, imageData.height);
-    const auto mipLevels = (std::uint32_t)std::floor(std::log2(maxExtent)) + 1;
-
-    glTextureStorage2D(texture, mipLevels, GL_SRGB8_ALPHA8, imageData.width, imageData.height);
-    glTextureSubImage2D(
-        texture,
-        0,
-        0,
-        0,
-        imageData.width,
-        imageData.height,
-        GL_RGBA,
-        GL_UNSIGNED_BYTE,
-        imageData.pixels);
-
-    glGenerateTextureMipmap(texture);
-
-    return texture;
-}
-
-GLuint allocateBuffer(std::size_t size, const char* debugName)
-{
-    GLuint buffer;
-    glCreateBuffers(1, &buffer);
-    setDebugLabel(GL_BUFFER, buffer, "sceneData");
-    glNamedBufferStorage(buffer, (GLsizeiptr)size, nullptr, GL_DYNAMIC_STORAGE_BIT);
-    return buffer;
-}
-
-int getUBOArrayElementSize(std::size_t elementSize, int uboAlignment)
-{
-    if (elementSize < uboAlignment) {
-        return uboAlignment;
-    }
-    if (elementSize % uboAlignment == 0) {
-        return elementSize;
-    }
-    return ((elementSize / uboAlignment) + 1) * uboAlignment;
-}
-
 template<typename T, typename RNGType>
 std::size_t chooseRandomElement(const std::vector<T>& v, RNGType& rng)
 {
@@ -136,39 +31,6 @@ std::size_t chooseRandomElement(const std::vector<T>& v, RNGType& rng)
     }
     std::uniform_int_distribution<std::size_t> dist{0, v.size() - 1};
     return dist(rng);
-}
-
-GPUMesh uploadMeshToGPU(const util::CPUMesh& cpuMesh)
-{
-    std::vector<GPUVertex> vertices;
-    vertices.reserve(cpuMesh.vertices.size());
-    for (const auto& vr : cpuMesh.vertices) {
-        vertices.push_back(GPUVertex{
-            .position = vr.position,
-            .uv_x = vr.uv.x,
-            .normal = vr.normal,
-            .uv_y = vr.uv.y,
-        });
-    }
-
-    GLuint vertexBuffer;
-    glCreateBuffers(1, &vertexBuffer);
-    glNamedBufferStorage(
-        vertexBuffer, sizeof(GPUVertex) * vertices.size(), vertices.data(), GL_DYNAMIC_STORAGE_BIT);
-
-    GLuint indexBuffer;
-    glCreateBuffers(1, &indexBuffer);
-    glNamedBufferStorage(
-        indexBuffer,
-        sizeof(std::uint32_t) * cpuMesh.indices.size(),
-        cpuMesh.indices.data(),
-        GL_DYNAMIC_STORAGE_BIT);
-
-    return GPUMesh{
-        .vertexBuffer = vertexBuffer,
-        .indexBuffer = indexBuffer,
-        .numIndices = static_cast<std::uint32_t>(cpuMesh.indices.size()),
-    };
 }
 
 // getStickState({negX, posX}, {negY, posY})
@@ -216,14 +78,6 @@ void sortObjects(
             return lengthA < lengthB;
         });
 }
-
-struct GLDebugGroup {
-    GLDebugGroup(const char* name) { glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, name); }
-    ~GLDebugGroup() { glPopDebugGroup(); }
-};
-
-#define GL_DEBUG_GROUP(x) GLDebugGroup g{x};
-
 }
 
 void App::start()
@@ -278,18 +132,18 @@ void App::init()
     glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &uboAlignment);
 
     { // shaders
-        const auto vertexShader = compileShader("assets/shaders/basic.vert", GL_VERTEX_SHADER);
+        const auto vertexShader = gfx::compileShader("assets/shaders/basic.vert", GL_VERTEX_SHADER);
         if (vertexShader == 0) {
             std::exit(1);
         }
 
-        const auto fragShader = compileShader("assets/shaders/basic.frag", GL_FRAGMENT_SHADER);
+        const auto fragShader = gfx::compileShader("assets/shaders/basic.frag", GL_FRAGMENT_SHADER);
         if (fragShader == 0) {
             std::exit(1);
         }
 
         shaderProgram = glCreateProgram();
-        setDebugLabel(GL_PROGRAM, shaderProgram, "shader");
+        gfx::setDebugLabel(GL_PROGRAM, shaderProgram, "shader");
 
         // link
         glAttachShader(shaderProgram, vertexShader);
@@ -313,10 +167,10 @@ void App::init()
     }
 
     { // allocate scene data buffer
-        globalSceneDataSize = getUBOArrayElementSize(sizeof(GlobalSceneData), uboAlignment);
-        perObjectDataElementSize = getUBOArrayElementSize(sizeof(PerObjectData), uboAlignment);
+        globalSceneDataSize = gfx::getUBOArrayElementSize(sizeof(GlobalSceneData), uboAlignment);
+        perObjectDataElementSize = gfx::getUBOArrayElementSize(sizeof(PerObjectData), uboAlignment);
         allocatedBufferSize = globalSceneDataSize + perObjectDataElementSize * 100;
-        sceneDataBuffer = allocateBuffer(allocatedBufferSize, "sceneData");
+        sceneDataBuffer = gfx::allocateBuffer(allocatedBufferSize, "sceneData");
     }
 
     // we still need an empty VAO even for vertex pulling
@@ -327,7 +181,7 @@ void App::init()
         "assets/images/texture2.png",
     };
     for (const auto& texturePath : texturesToLoad) {
-        auto texture = loadTextureFromFile(texturePath);
+        auto texture = gfx::loadTextureFromFile(texturePath);
         if (texture == 0) {
             std::exit(1);
         }
@@ -335,8 +189,8 @@ void App::init()
     }
 
     { // load meshes
-        meshes.push_back(uploadMeshToGPU(util::getCubeMesh()));
-        meshes.push_back(uploadMeshToGPU(util::getStarMesh()));
+        meshes.push_back(gfx::uploadMeshToGPU(util::getCubeMesh()));
+        meshes.push_back(gfx::uploadMeshToGPU(util::getStarMesh()));
     }
 
     // initial state
@@ -361,7 +215,6 @@ void App::init()
     }
 
     auto numObjectsToSpawn = dist(rng);
-    numObjectsToSpawn = 10;
     numObjectsToSpawn = 0;
     for (int i = 0; i < numObjectsToSpawn; ++i) {
         generateRandomObject();
@@ -376,7 +229,7 @@ void App::init()
 
     // init lights
     sunlightColor = glm::vec3{0.65, 0.4, 0.3};
-    sunlightIntensity = 1.5f;
+    sunlightIntensity = 1.75f;
     sunlightDir = glm::normalize(glm::vec3(1.0, -1.0, 1.0));
 
     ambientColor = glm::vec3{0.3, 0.65, 0.8};
@@ -525,7 +378,7 @@ void App::render()
     uploadSceneData();
 
     glBindVertexArray(vao);
-    {
+    { // render objects
         // object texture will be read from TU0
         glProgramUniform1i(shaderProgram, FRAG_TEXTURE_UNIFORM_LOC, 0);
 
@@ -542,6 +395,7 @@ void App::render()
             GL_DEBUG_GROUP("opaque pass");
             renderSceneObjects(opaqueObjects);
         }
+
         {
             GL_DEBUG_GROUP("transparent pass");
             renderSceneObjects(transparentObjects);
@@ -591,7 +445,7 @@ void App::uploadSceneData()
             allocatedBufferSize *= 2;
         }
         glDeleteBuffers(1, &sceneDataBuffer);
-        sceneDataBuffer = allocateBuffer(allocatedBufferSize, "sceneData");
+        sceneDataBuffer = gfx::allocateBuffer(allocatedBufferSize, "sceneData");
         std::cout << "Reallocated UBO, new size = " << allocatedBufferSize << std::endl;
     }
 
@@ -643,8 +497,27 @@ void App::generateRandomObject()
         .meshIdx = chooseRandomElement(meshes, rng),
         .textureIdx = chooseRandomElement(textures, rng),
     };
-    object.transform.position.x = dist2(rng);
-    object.transform.position.y = dist2(rng);
+
+    std::uniform_real_distribution<float> posDist{-5.f, 5.f};
+    // random position
+    object.transform.position.x = posDist(rng);
+    object.transform.position.y = posDist(rng);
+    object.transform.position.z = posDist(rng);
+
+    // add some random rotation
+    std::uniform_real_distribution<float> angleDist{-glm::pi<float>(), glm::pi<float>()};
+    auto xRot = glm::angleAxis(angleDist(rng), glm::vec3{1.f, 0.f, 0.f});
+    auto zRot = glm::angleAxis(angleDist(rng), glm::vec3{0.f, 0.f, 1.f});
+    object.transform.heading = zRot * xRot;
+
+    std::uniform_real_distribution<float> scaleDist{0.5f, 1.5f};
+    object.transform.scale = glm::vec3{scaleDist(rng)};
+
+    // decide if object should be opaque or not at random
+    std::uniform_int_distribution<int> opaqueDist{0, 1};
+    bool isOpaque = (bool)opaqueDist(rng);
+    object.alpha = isOpaque ? 1.0 : 0.5f;
+
     objects.push_back(object);
 }
 

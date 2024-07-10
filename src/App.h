@@ -5,6 +5,7 @@
 #include <SDL2/SDL.h>
 
 #include "Camera.h"
+#include "GPUMesh.h"
 
 #include <random>
 
@@ -23,19 +24,6 @@ struct Transform {
         transformMatrix = glm::scale(transformMatrix, scale);
         return transformMatrix;
     }
-};
-
-struct GPUVertex {
-    glm::vec3 position;
-    float uv_x;
-    glm::vec3 normal;
-    float uv_y;
-};
-
-struct GPUMesh {
-    std::uint32_t vertexBuffer{};
-    std::uint32_t indexBuffer{};
-    std::uint32_t numIndices{};
 };
 
 struct ObjectData {
@@ -76,7 +64,6 @@ private:
     std::random_device randomDevice;
     std::mt19937 rng;
     std::uniform_int_distribution<int> dist{1, 10};
-    std::uniform_real_distribution<float> dist2{-10.f, 10.f};
 
     std::uint32_t shaderProgram{};
     std::uint32_t vao{}; // empty vao
@@ -89,7 +76,7 @@ private:
     Camera camera;
 
     float timer{0.f};
-    float timeToSpawnNewCube{200.0f};
+    float timeToSpawnNewCube{0.25f};
 
     struct GlobalSceneData {
         glm::mat4 projection;
