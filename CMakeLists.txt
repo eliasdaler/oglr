@@ -18,6 +18,7 @@ add_executable(app
   src/GLDebugCallback.cpp
   src/GraphicsUtil.cpp
   src/ImageLoader.cpp
+  src/AABB.cpp
   src/Camera.cpp
   src/App.cpp
   src/main.cpp

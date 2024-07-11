@@ -126,6 +126,7 @@ void App::init()
     glEnable(GL_FRAMEBUFFER_SRGB);
 
     // make lines thicker (won't work everywhere, but whatever)
+    glEnable(GL_LINE_SMOOTH);
     glLineWidth(3.f);
 
     glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &uboAlignment);
@@ -357,6 +358,8 @@ void App::update(float dt)
         addLine(pos, pos + object.transform.getUp() * lineLength, glm::vec4{0.f, 1.f, 0.f, 1.f});
         addLine(
             pos, pos + object.transform.getForward() * lineLength, glm::vec4{0.f, 0.f, 1.f, 1.f});
+
+        addAABBLines(meshes[object.meshIdx].aabb, object.transform, glm::vec4{1.f, 0.f, 1.f, 1.f});
     }
 }
 
@@ -543,7 +546,7 @@ void App::generateRandomObject()
         .textureIdx = chooseRandomElement(textures, rng),
     };
 
-    std::uniform_real_distribution<float> posDist{-5.f, 5.f};
+    std::uniform_real_distribution<float> posDist{-10.f, 10.f};
     // random position
     object.transform.position.x = posDist(rng);
     object.transform.position.y = posDist(rng);
@@ -583,6 +586,46 @@ void App::addLine(const glm::vec3& from, const glm::vec3& to, const glm::vec4& c
     assert(lines.size() < MAX_LINES && "Too many lines drawn");
     lines.push_back(LineVertex{.pos = from, .color = color});
     lines.push_back(LineVertex{.pos = to, .color = color});
+}
+
+void App::addAABBLines(const AABB& aabb, const Transform& transform, const glm::vec4& color)
+{
+    auto points = std::vector<glm::vec3>{
+        // upper quad
+        {aabb.min.x, aabb.min.y, aabb.min.z},
+        {aabb.max.x, aabb.min.y, aabb.min.z},
+        {aabb.max.x, aabb.min.y, aabb.max.z},
+        {aabb.min.x, aabb.min.y, aabb.max.z},
+        // lower quad
+        {aabb.min.x, aabb.max.y, aabb.min.z},
+        {aabb.max.x, aabb.max.y, aabb.min.z},
+        {aabb.max.x, aabb.max.y, aabb.max.z},
+        {aabb.min.x, aabb.max.y, aabb.max.z},
+    };
+    const auto tm = transform.asMatrix();
+    for (auto& point : points) {
+        point = glm::vec3(tm * glm::vec4{point, 1.f});
+    }
+    std::vector<std::pair<std::size_t, std::size_t>> lineIndices = {
+        // bottom quad
+        {0, 1},
+        {1, 2},
+        {2, 3},
+        {0, 3},
+        // upper quad
+        {4, 5},
+        {5, 6},
+        {6, 7},
+        {7, 4},
+        // side lines
+        {2, 6},
+        {1, 5},
+        {3, 7},
+        {0, 4},
+    };
+    for (const auto& li : lineIndices) {
+        addLine(points[li.first], points[li.second], color);
+    }
 }
 
 void App::renderLines()

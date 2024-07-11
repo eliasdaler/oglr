@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <glm/vec3.hpp>
 
+#include "AABB.h"
 #include "GPUBuffer.h"
 
 struct GPUVertex {
@@ -16,4 +17,5 @@ struct GPUMesh {
     GPUBuffer vertexBuffer{};
     GPUBuffer indexBuffer{};
     std::uint32_t numIndices{};
+    AABB aabb;
 };

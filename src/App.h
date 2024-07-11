@@ -47,6 +47,7 @@ private:
     void spawnCube(const glm::vec3& pos, std::size_t textureIdx, float alpha, float startAnimAlpha);
 
     void addLine(const glm::vec3& from, const glm::vec3& to, const glm::vec4& color);
+    void addAABBLines(const AABB& aabb, const Transform& transform, const glm::vec4& color);
 
     SDL_Window* window{nullptr};
     SDL_GLContext glContext{nullptr};

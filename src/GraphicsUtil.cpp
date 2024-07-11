@@ -215,6 +215,7 @@ GPUMesh uploadMeshToGPU(const CPUMesh& cpuMesh)
         .vertexBuffer = vertexBuffer,
         .indexBuffer = indexBuffer,
         .numIndices = static_cast<std::uint32_t>(cpuMesh.indices.size()),
+        .aabb = util::calculateMeshAABB(cpuMesh),
     };
 }
 
