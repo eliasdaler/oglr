@@ -205,7 +205,8 @@ void App::init()
         const auto zNear = 0.1f;
         const auto zFar = 7.5f;
         testCamera.init(fovX, zNear, zFar, (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT);
-        testCamera.setPosition({2.f, 3.f, -3.f});
+        // testCamera.setPosition({2.f, 3.f, -3.f});
+        testCamera.setPosition({0.f, 3.f, -3.f});
         testCamera.lookAt(glm::vec3{0.f, 0.f, 0.f});
     }
 

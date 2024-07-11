@@ -34,7 +34,7 @@ struct Frustum {
 
         float getSignedDistanceToPlane(const glm::vec3& point) const
         {
-            return glm::dot(n, point) + d;
+            return glm::dot(point, n) + d;
         }
     };
 

@@ -58,15 +58,19 @@ Frustum createFrustumFromCamera(const Camera& camera)
         {-(m[0][3] - m[0][0]), -(m[1][3] - m[1][0]), -(m[2][3] - m[2][0]), -(m[3][3] - m[3][0])};
 
     frustum.bottomFace =
-        {-(m[0][3] + m[0][1]), -(m[1][3] + m[1][1]), -(m[2][3] + m[2][1]), -(m[3][3] + m[3][2])};
+        {-(m[0][3] + m[0][1]), -(m[1][3] + m[1][1]), -(m[2][3] + m[2][1]), -(m[3][3] + m[3][1])};
     frustum.topFace =
-        {-(m[0][3] - m[0][1]), -(m[1][3] - m[1][1]), -(m[2][3] - m[2][1]), -(m[3][3] - m[3][2])};
+        {-(m[0][3] - m[0][1]), -(m[1][3] - m[1][1]), -(m[2][3] - m[2][1]), -(m[3][3] - m[3][1])};
 
     return frustum;
 }
 
 bool isInFrustum(const Frustum& frustum, const AABB& aabb)
 {
+    auto c = (aabb.max + aabb.min) / 2.f;
+    auto r = (aabb.max.z - aabb.min.z) / 2.f;
+    return isInFrustum(frustum, Sphere{.center = c, .radius = r});
+
     bool ret = true;
     for (int i = 0; i < 6; ++i) {
         const auto& plane = frustum.getPlane(i);
