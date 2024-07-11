@@ -136,6 +136,9 @@ void App::init()
         worldShader = gfx::
             loadShaderProgram("assets/shaders/basic.vert", "assets/shaders/basic.frag", "world");
         assert(worldShader);
+        solidColorShader = gfx::loadShaderProgram(
+            "assets/shaders/basic.vert", "assets/shaders/solid_color.frag", "world");
+        assert(solidColorShader);
         linesShader = gfx::
             loadShaderProgram("assets/shaders/lines.vert", "assets/shaders/lines.frag", "lines");
         assert(linesShader);
@@ -217,10 +220,10 @@ void App::init()
     spawnCube({0.f, 0.f, 5.0f}, 0, 0.5);
     spawnCube({0.f, 0.f, 7.5f}, 0, 1); */
 
-    spawnCube({0.f, 0.f, 0.f}, 0, 0.f, -0.5f);
-    spawnCube({0.f, 0.f, 2.5f}, 1, 0.777f, 0.f);
-    spawnCube({0.f, 0.f, 5.0f}, 0, 0.f, -1.5f);
-    spawnCube({0.f, 0.f, 7.5f}, 0, 0.f, -1.25f);
+    spawnCube({0.f, 0.f, 0.f}, 0, 0.5f);
+    spawnCube({0.f, 0.f, 2.5f}, 1, 0.7f);
+    spawnCube({0.f, 0.f, 5.0f}, 0, 1.f);
+    spawnCube({0.f, 0.f, 7.5f}, 0, 0.2f);
 
     // init lights
     sunlightColor = glm::vec3{0.65, 0.4, 0.3};
@@ -271,6 +274,7 @@ void App::cleanup()
     glDeleteVertexArrays(1, &vao);
 
     glDeleteProgram(linesShader);
+    glDeleteProgram(solidColorShader);
     glDeleteProgram(worldShader);
 
     SDL_GL_DeleteContext(glContext);
@@ -343,13 +347,6 @@ void App::update(float dt)
         // object.transform.heading *= glm::angleAxis(rotationSpeed * dt, glm::vec3{1.f, 1.f, 0.f});
     }
 
-    for (auto& object : objects) {
-        if (object.alpha != 1.f && object.alpha != 0.777f) {
-            object.animAlpha += 0.5f * dt;
-            object.alpha = std::clamp(object.animAlpha, 0.f, 1.f);
-        }
-    }
-
     timer += dt;
     if (timer >= timeToSpawnNewCube) {
         timer = 0.f;
@@ -366,7 +363,7 @@ void App::update(float dt)
         addLine(
             pos, pos + object.transform.getForward() * lineLength, glm::vec4{0.f, 0.f, 1.f, 1.f});
 
-        addAABBLines(meshes[object.meshIdx].aabb, object.transform, glm::vec4{1.f, 0.f, 1.f, 1.f});
+        // addAABBLines(object.aabb, glm::vec4{1.f, 0.f, 1.f, 1.f});
     }
 
     addFrustumLines(testCamera);
@@ -452,7 +449,13 @@ void App::render()
         }
     }
 
-    renderLines();
+    {
+        GL_DEBUG_GROUP("Debug primitives");
+        gfx::setGlobalState(linesDrawState);
+
+        renderLines();
+        renderWireframes(drawList);
+    }
 
     SDL_GL_SwapWindow(window);
 }
@@ -461,8 +464,9 @@ void App::generateDrawList()
 {
     drawList.clear();
     for (std::size_t i = 0; i < objects.size(); ++i) {
-        const auto& object = objects[i];
+        auto& object = objects[i];
         if (object.alpha != 0.f) {
+            object.worldAABB = calculateWorldAABB(object);
             const auto distToCamera = glm::length(camera.getPosition() - object.transform.position);
             drawList.push_back(DrawInfo{
                 .objectIdx = i,
@@ -516,9 +520,9 @@ void App::uploadSceneData()
 
     // reallocate buffer if needed
     // const auto sceneDataSize = sizeof(PerObjectData) * sceneData.size();
-    if (sceneData.getData().size() > sceneDataBuffer.size) {
+    while (sceneData.getData().size() > sceneDataBuffer.size) {
         glDeleteBuffers(1, &sceneDataBuffer.buffer);
-        sceneDataBuffer = gfx::allocateBuffer(sceneData.getData().size(), nullptr, "sceneData");
+        sceneDataBuffer = gfx::allocateBuffer(sceneDataBuffer.size * 2, nullptr, "sceneData");
         std::cout << "Reallocated UBO, new size = " << sceneData.getData().size() << std::endl;
     }
 
@@ -548,6 +552,36 @@ void App::renderSceneObjects(const std::vector<DrawInfo>& drawList)
     }
 }
 
+void App::renderWireframes(const std::vector<DrawInfo>& drawList)
+{
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glUseProgram(solidColorShader);
+
+    Frustum frustum = util::createFrustumFromCamera(testCamera);
+
+    for (const auto& drawInfo : drawList) {
+        const auto& object = objects[drawInfo.objectIdx];
+        const auto& mesh = meshes[object.meshIdx];
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VERTEX_DATA_BINDING, mesh.vertexBuffer.buffer);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.indexBuffer.buffer);
+
+        bool isInFrustum = util::isInFrustum(frustum, object.worldAABB);
+        const auto color =
+            isInFrustum ? glm::vec4{0.f, 1.f, 0.f, 1.f} : glm::vec4{1.f, 0.f, 0.f, 1.f};
+        glUniform4fv(0, 1, glm::value_ptr(color));
+
+        glBindBufferRange(
+            GL_UNIFORM_BUFFER,
+            PER_OBJECT_DATA_BINDING,
+            sceneDataBuffer.buffer,
+            drawInfo.uboOffset,
+            sizeof(PerObjectData));
+
+        glDrawElements(GL_TRIANGLES, mesh.numIndices, GL_UNSIGNED_INT, 0);
+    }
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+}
+
 void App::generateRandomObject()
 {
     ObjectData object{
@@ -573,18 +607,17 @@ void App::generateRandomObject()
     // decide if object should be opaque or not at random
     std::uniform_int_distribution<int> opaqueDist{0, 1};
     bool isOpaque = (bool)opaqueDist(rng);
-    object.alpha = isOpaque ? 1.0 : 0.777f;
+    object.alpha = isOpaque ? 1.0 : 0.75f;
 
     objects.push_back(object);
 }
 
-void App::spawnCube(const glm::vec3& pos, std::size_t textureIdx, float alpha, float startAnimAlpha)
+void App::spawnCube(const glm::vec3& pos, std::size_t textureIdx, float alpha)
 {
     ObjectData object{
         .meshIdx = 0,
         .textureIdx = textureIdx,
         .alpha = alpha,
-        .animAlpha = startAnimAlpha,
     };
     object.transform.position = pos;
     objects.push_back(object);
@@ -609,7 +642,7 @@ void App::addQuadLines(
     addLine(d, a, color);
 }
 
-void App::addAABBLines(const AABB& aabb, const Transform& transform, const glm::vec4& color)
+void App::addAABBLines(const AABB& aabb, const glm::vec4& color)
 {
     auto points = std::vector<glm::vec3>{
         // upper quad
@@ -623,10 +656,6 @@ void App::addAABBLines(const AABB& aabb, const Transform& transform, const glm::
         {aabb.max.x, aabb.max.y, aabb.max.z},
         {aabb.min.x, aabb.max.y, aabb.max.z},
     };
-    const auto tm = transform.asMatrix();
-    for (auto& point : points) {
-        point = glm::vec3(tm * glm::vec4{point, 1.f});
-    }
     std::vector<std::array<std::size_t, 4>> quadIndices = {
         {0, 1, 2, 3},
         {4, 5, 6, 7},
@@ -650,13 +679,49 @@ void App::addFrustumLines(const Camera& camera)
     addQuadLines(corners[0], corners[1], corners[2], corners[3], glm::vec4{0.f, 1.f, 1.f, 1.f});
     // far plane
     addQuadLines(corners[4], corners[5], corners[6], corners[7], glm::vec4{0.f, 1.f, 1.f, 1.f});
+
+    // draw normals
+    auto normalLength = 0.5f;
+    auto normalColor = glm::vec4{1.f, 0.5f, 0.5f, 1.f};
+    auto frustum = util::createFrustumFromCamera(camera);
+
+    const auto npc = (corners[0] + corners[1] + corners[2] + corners[3]) / 4.f;
+    addLine(npc, npc + frustum.nearFace.normal * normalLength, normalColor);
+
+    const auto fpc = (corners[4] + corners[5] + corners[6] + corners[7]) / 4.f;
+    addLine(fpc, fpc + frustum.nearFace.normal * normalLength, normalColor);
+
+    const auto lpc = (corners[4] + corners[5] + corners[1] + corners[0]) / 4.f;
+    addLine(lpc, lpc + frustum.nearFace.normal * normalLength, normalColor);
+
+    const auto rpc = (corners[7] + corners[6] + corners[2] + corners[3]) / 4.f;
+    addLine(rpc, rpc + frustum.nearFace.normal * normalLength, normalColor);
+}
+
+AABB App::calculateWorldAABB(const ObjectData& object)
+{
+    auto& aabb = meshes[object.meshIdx].aabb;
+    auto points = std::vector<glm::vec3>{
+        // upper quad
+        {aabb.min.x, aabb.min.y, aabb.min.z},
+        {aabb.max.x, aabb.min.y, aabb.min.z},
+        {aabb.max.x, aabb.min.y, aabb.max.z},
+        {aabb.min.x, aabb.min.y, aabb.max.z},
+        // lower quad
+        {aabb.min.x, aabb.max.y, aabb.min.z},
+        {aabb.max.x, aabb.max.y, aabb.min.z},
+        {aabb.max.x, aabb.max.y, aabb.max.z},
+        {aabb.min.x, aabb.max.y, aabb.max.z},
+    };
+    const auto tm = object.transform.asMatrix();
+    for (auto& point : points) {
+        point = glm::vec3(tm * glm::vec4{point, 1.f});
+    }
+    return util::calculateAABB(points);
 }
 
 void App::renderLines()
 {
-    GL_DEBUG_GROUP("Debug lines pass");
-    gfx::setGlobalState(linesDrawState);
-
     static const int VP_UNIFORM_BINDING = 0;
     static const int LINE_VERTEX_DATA_BINDING = 0;
 

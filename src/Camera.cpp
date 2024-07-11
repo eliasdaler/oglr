@@ -38,12 +38,17 @@ glm::mat4 Camera::getViewProj() const
     return projection * getView();
 }
 
-glm::vec3 Camera::getForward() const
-{
-    return transform.getForward();
-}
-
 glm::vec3 Camera::getRight() const
 {
     return transform.getRight();
+}
+
+glm::vec3 Camera::getUp() const
+{
+    return transform.getUp();
+}
+
+glm::vec3 Camera::getForward() const
+{
+    return transform.getForward();
 }

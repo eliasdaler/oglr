@@ -16,7 +16,7 @@ struct ObjectData {
     std::size_t meshIdx{}; // index into "meshes" array
     std::size_t textureIdx{}; // index into "textures" array
     float alpha{1.f};
-    float animAlpha{1.f};
+    AABB worldAABB; // aabb in world space
 };
 
 struct DrawInfo {
@@ -39,12 +39,15 @@ private:
     void generateDrawList();
     void uploadSceneData();
     void renderSceneObjects(const std::vector<DrawInfo>& drawList);
+    void renderWireframes(const std::vector<DrawInfo>& drawList);
     void renderLines();
+
+    AABB calculateWorldAABB(const ObjectData& object);
 
     void handleFreeCameraControls(float dt);
 
     void generateRandomObject();
-    void spawnCube(const glm::vec3& pos, std::size_t textureIdx, float alpha, float startAnimAlpha);
+    void spawnCube(const glm::vec3& pos, std::size_t textureIdx, float alpha);
 
     void addLine(const glm::vec3& from, const glm::vec3& to, const glm::vec4& color);
     void addQuadLines(
@@ -53,7 +56,7 @@ private:
         const glm::vec3& c,
         const glm::vec3& d,
         const glm::vec4& color);
-    void addAABBLines(const AABB& aabb, const Transform& transform, const glm::vec4& color);
+    void addAABBLines(const AABB& aabb, const glm::vec4& color);
     void addFrustumLines(const Camera& camera);
 
     SDL_Window* window{nullptr};
@@ -69,6 +72,7 @@ private:
     std::uniform_int_distribution<int> dist{1, 10};
 
     std::uint32_t worldShader{};
+    std::uint32_t solidColorShader{};
     std::uint32_t vao{}; // empty vao
 
     std::vector<GPUMesh> meshes;
@@ -80,7 +84,7 @@ private:
     Camera testCamera;
 
     float timer{0.f};
-    float timeToSpawnNewCube{0.25f};
+    float timeToSpawnNewCube{100.25f};
 
     struct GlobalSceneData {
         glm::mat4 projection;

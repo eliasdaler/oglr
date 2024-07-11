@@ -24,8 +24,14 @@ public:
 
     void lookAt(const glm::vec3& point);
 
-    glm::vec3 getForward() const;
     glm::vec3 getRight() const;
+    glm::vec3 getUp() const;
+    glm::vec3 getForward() const;
+
+    float getFOVY() const { return fovY; }
+    float getAspectRatio() const { return aspectRatio; }
+    float getZNear() const { return zNear; };
+    float getZFar() const { return zFar; };
 
 private:
     Transform transform;
