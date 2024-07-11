@@ -89,7 +89,7 @@ private:
     Camera testCamera;
 
     float timer{0.f};
-    float timeToSpawnNewCube{100.25f};
+    float timeToSpawnNewObject{1000.25f};
 
     struct GlobalSceneData {
         glm::mat4 projection;

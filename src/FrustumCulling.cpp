@@ -50,53 +50,37 @@ Frustum createFrustumFromCamera(const Camera& camera)
     const auto halfHSide = halfVSide * camera.getAspectRatio();
     const auto frontMultFar = zFar * camFront;
 
-    frustum.nearFace = {camPos + zNear * camFront, camFront};
-    frustum.farFace = {camPos + frontMultFar, -camFront};
-
-    // FIXME: why is there - in from of glm::cross here?
-    // (need it to make normals point inside)
-    frustum.leftFace = {camPos, -glm::cross(camUp, frontMultFar + camRight * halfHSide)};
-    frustum.rightFace = {camPos, -glm::cross(frontMultFar - camRight * halfHSide, camUp)};
-    frustum.bottomFace = {camPos, -glm::cross(frontMultFar + camUp * halfVSide, camRight)};
-    frustum.topFace = {camPos, -glm::cross(camRight, frontMultFar - camUp * halfVSide)};
+    frustum.nearFace = {camPos + zNear * camFront, -camFront};
+    frustum.farFace = {camPos + frontMultFar, camFront};
+    frustum.leftFace = {camPos, glm::cross(camUp, frontMultFar + camRight * halfHSide)};
+    frustum.rightFace = {camPos, glm::cross(frontMultFar - camRight * halfHSide, camUp)};
+    frustum.bottomFace = {camPos, glm::cross(frontMultFar + camUp * halfVSide, camRight)};
+    frustum.topFace = {camPos, glm::cross(camRight, frontMultFar - camUp * halfVSide)};
 
     return frustum;
 }
 
 bool isInFrustum(const Frustum& frustum, const AABB& aabb)
 {
-    glm::vec3 vmin, vmax;
     bool ret = true;
     for (int i = 0; i < 6; ++i) {
         const auto& plane = frustum.getPlane(i);
-        // X axis
-        if (plane.normal.x < 0) {
-            vmin.x = aabb.min.x;
-            vmax.x = aabb.max.x;
-        } else {
-            vmin.x = aabb.max.x;
-            vmax.x = aabb.min.x;
-        }
-        // Y axis
-        if (plane.normal.y < 0) {
-            vmin.y = aabb.min.y;
-            vmax.y = aabb.max.y;
-        } else {
-            vmin.y = aabb.max.y;
-            vmax.y = aabb.min.y;
-        }
-        // Z axis
-        if (plane.normal.z < 0) {
-            vmin.z = aabb.min.z;
-            vmax.z = aabb.max.z;
-        } else {
-            vmin.z = aabb.max.z;
-            vmax.z = aabb.min.z;
-        }
-        if (plane.getSignedDistanceToPlane(vmin) < 0) {
+
+        // Nearest point
+        glm::vec3 p;
+        p.x = plane.normal.x >= 0 ? aabb.min.x : aabb.max.x;
+        p.y = plane.normal.y >= 0 ? aabb.min.y : aabb.max.y;
+        p.z = plane.normal.z >= 0 ? aabb.min.z : aabb.max.z;
+        if (plane.getSignedDistanceToPlane(p) > 0) {
             return false;
         }
-        if (plane.getSignedDistanceToPlane(vmax) <= 0) {
+
+        // Farthest point
+        glm::vec3 f;
+        f.x = plane.normal.x >= 0 ? aabb.max.x : aabb.min.x;
+        f.y = plane.normal.y >= 0 ? aabb.max.y : aabb.min.y;
+        f.z = plane.normal.z >= 0 ? aabb.max.z : aabb.min.z;
+        if (plane.getSignedDistanceToPlane(f) > 0) {
             ret = true;
         }
     }

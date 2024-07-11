@@ -216,11 +216,6 @@ void App::init()
         generateRandomObject();
     }
 
-    /* spawnCube({0.f, 0.f, 0.f}, 0, 1);
-    spawnCube({0.f, 0.f, 2.5f}, 1, 0.5);
-    spawnCube({0.f, 0.f, 5.0f}, 0, 0.5);
-    spawnCube({0.f, 0.f, 7.5f}, 0, 1); */
-
     spawnCube({0.f, 0.f, 0.f}, 0, 0.5f);
     spawnCube({0.f, 0.f, 2.5f}, 1, 0.7f);
     spawnCube({0.f, 0.f, 5.0f}, 0, 1.f);
@@ -342,16 +337,17 @@ void App::update(float dt)
 {
     handleFreeCameraControls(dt);
 
+    // spawn random objects
+    timer += dt;
+    if (timer >= timeToSpawnNewObject) {
+        timer = 0.f;
+        generateRandomObject();
+    }
+
     // rotate objects
     static const auto rotationSpeed = glm::radians(45.f);
     for (auto& object : objects) {
         // object.transform.heading *= glm::angleAxis(rotationSpeed * dt, glm::vec3{1.f, 1.f, 0.f});
-    }
-
-    timer += dt;
-    if (timer >= timeToSpawnNewCube) {
-        timer = 0.f;
-        generateRandomObject();
     }
 
     lines.clear();
@@ -455,17 +451,26 @@ void App::render()
 
 void App::generateDrawList()
 {
+    Frustum frustum = util::createFrustumFromCamera(testCamera);
+
     drawList.clear();
+
     for (std::size_t i = 0; i < objects.size(); ++i) {
         auto& object = objects[i];
-        if (object.alpha != 0.f) {
-            object.worldAABB = calculateWorldAABB(object);
-            const auto distToCamera = glm::length(camera.getPosition() - object.transform.position);
-            drawList.push_back(DrawInfo{
-                .objectIdx = i,
-                .distToCamera = distToCamera,
-            });
+        if (object.alpha == 0.f) {
+            continue;
         }
+
+        object.worldAABB = calculateWorldAABB(object);
+        if (!util::isInFrustum(frustum, object.worldAABB)) {
+            continue;
+        }
+
+        const auto distToCamera = glm::length(camera.getPosition() - object.transform.position);
+        drawList.push_back(DrawInfo{
+            .objectIdx = i,
+            .distToCamera = distToCamera,
+        });
     }
 
     uploadSceneData();
