@@ -30,6 +30,47 @@ std::string readFileToString(const std::filesystem::path& path)
 
 namespace gfx
 {
+GLuint loadShaderProgram(
+    const std::filesystem::path& vertShaderPath,
+    const std::filesystem::path& fragShaderPath,
+    const char* debugName)
+{
+    const auto vertexShader = gfx::compileShader(vertShaderPath, GL_VERTEX_SHADER);
+    if (vertexShader == 0) {
+        return 0;
+    }
+
+    const auto fragShader = gfx::compileShader(fragShaderPath, GL_FRAGMENT_SHADER);
+    if (fragShader == 0) {
+        return 0;
+    }
+
+    GLuint shaderProgram = glCreateProgram();
+    gfx::setDebugLabel(GL_PROGRAM, shaderProgram, debugName);
+
+    // link
+    glAttachShader(shaderProgram, vertexShader);
+    glAttachShader(shaderProgram, fragShader);
+    glLinkProgram(shaderProgram);
+
+    // check for linking errors
+    int success{};
+    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+    if (!success) {
+        GLint logLength;
+        glGetShaderiv(shaderProgram, GL_INFO_LOG_LENGTH, &logLength);
+        std::string log(logLength + 1, '\0');
+        glGetProgramInfoLog(shaderProgram, logLength, NULL, &log[0]);
+        std::cout << "Shader linking failed: " << log << std::endl;
+        std::exit(1);
+    }
+
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragShader);
+
+    return shaderProgram;
+}
+
 GLuint compileShader(const std::filesystem::path& path, GLenum shaderType)
 {
     GLint shader = glCreateShader(shaderType);
@@ -48,7 +89,7 @@ GLuint compileShader(const std::filesystem::path& path, GLenum shaderType)
         glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLength);
         std::string log(logLength + 1, '\0');
         glGetShaderInfoLog(shader, logLength, NULL, &log[0]);
-        std::cout << "Failed to compile shader:" << log << std::endl;
+        std::cout << "Failed to compile shader " << path << ": " << log << std::endl;
         return 0;
     }
     setDebugLabel(GL_SHADER, shader, path.string());

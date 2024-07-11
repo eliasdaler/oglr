@@ -9,6 +9,7 @@
 #include <glm/gtx/compatibility.hpp> // lerp for vec3
 
 #include "GLDebugCallback.h"
+#include "GlobalAxes.h"
 #include "GraphicsUtil.h"
 #include "Meshes.h"
 
@@ -124,41 +125,18 @@ void App::init()
     gl::enableDebugCallback();
     glEnable(GL_FRAMEBUFFER_SRGB);
 
+    // make lines thicker (won't work everywhere, but whatever)
+    glLineWidth(3.f);
+
     glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &uboAlignment);
 
     { // shaders
-        const auto vertexShader = gfx::compileShader("assets/shaders/basic.vert", GL_VERTEX_SHADER);
-        if (vertexShader == 0) {
-            std::exit(1);
-        }
-
-        const auto fragShader = gfx::compileShader("assets/shaders/basic.frag", GL_FRAGMENT_SHADER);
-        if (fragShader == 0) {
-            std::exit(1);
-        }
-
-        shaderProgram = glCreateProgram();
-        gfx::setDebugLabel(GL_PROGRAM, shaderProgram, "shader");
-
-        // link
-        glAttachShader(shaderProgram, vertexShader);
-        glAttachShader(shaderProgram, fragShader);
-        glLinkProgram(shaderProgram);
-
-        // check for linking errors
-        int success{};
-        glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-        if (!success) {
-            GLint logLength;
-            glGetShaderiv(shaderProgram, GL_INFO_LOG_LENGTH, &logLength);
-            std::string log(logLength + 1, '\0');
-            glGetProgramInfoLog(shaderProgram, logLength, NULL, &log[0]);
-            std::cout << "Shader linking failed: " << log << std::endl;
-            std::exit(1);
-        }
-
-        glDeleteShader(vertexShader);
-        glDeleteShader(fragShader);
+        worldShader = gfx::
+            loadShaderProgram("assets/shaders/basic.vert", "assets/shaders/basic.frag", "world");
+        assert(worldShader);
+        linesShader = gfx::
+            loadShaderProgram("assets/shaders/lines.vert", "assets/shaders/lines.frag", "lines");
+        assert(linesShader);
     }
 
     { // allocate scene data buffer
@@ -172,8 +150,9 @@ void App::init()
 
     { // allocate scene data buffer
         const auto lineVertexSize = gfx::getAlignedSize(sizeof(LineVertex), uboAlignment);
-        const auto bufSize = lineVertexSize * 100;
+        const auto bufSize = lineVertexSize * MAX_LINES * 2;
         linesBuffer = gfx::allocateBuffer(bufSize, 0, "lines");
+        lines.reserve(MAX_LINES * 2);
     }
 
     // we still need an empty VAO even for vertex pulling
@@ -263,6 +242,13 @@ void App::init()
         .cullingEnabled = true,
         .blendEnabled = true,
     };
+
+    linesDrawState = gfx::GlobalState{
+        .depthTestEnabled = false,
+        .depthWriteEnabled = false,
+        .cullingEnabled = false,
+        .blendEnabled = true,
+    };
 }
 
 void App::cleanup()
@@ -275,7 +261,9 @@ void App::cleanup()
     glDeleteBuffers(1, &sceneDataBuffer.buffer);
 
     glDeleteVertexArrays(1, &vao);
-    glDeleteProgram(shaderProgram);
+
+    glDeleteProgram(linesShader);
+    glDeleteProgram(worldShader);
 
     SDL_GL_DeleteContext(glContext);
     SDL_DestroyWindow(window);
@@ -359,14 +347,21 @@ void App::update(float dt)
         timer = 0.f;
         generateRandomObject();
     }
+
+    lines.clear();
+    for (auto& object : objects) {
+        const auto& pos = object.transform.position;
+        const auto& heading = object.transform.heading;
+        float lineLength = 1.f;
+        addLine(pos, pos + object.transform.getRight() * lineLength, glm::vec4{1.f, 0.f, 0.f, 1.f});
+        addLine(pos, pos + object.transform.getUp() * lineLength, glm::vec4{0.f, 1.f, 0.f, 1.f});
+        addLine(
+            pos, pos + object.transform.getForward() * lineLength, glm::vec4{0.f, 0.f, 1.f, 1.f});
+    }
 }
 
 void App::handleFreeCameraControls(float dt)
 {
-    const auto GLOBAL_UP_DIR = glm::vec3{0.f, 1.f, 0.f};
-    const auto GLOBAL_FRONT_DIR = glm::vec3{0.f, 0.f, 1.f};
-    const auto GLOBAL_RIGHT_DIR = glm::vec3{1.f, 0.f, 0.f};
-
     { // move
         const glm::vec3 cameraWalkSpeed = {10.f, 5.f, 10.f};
 
@@ -377,9 +372,9 @@ void App::handleFreeCameraControls(float dt)
             getStickState({SDL_SCANCODE_Q, SDL_SCANCODE_E}, {SDL_SCANCODE_W, SDL_SCANCODE_S});
 
         glm::vec3 moveVector{};
-        moveVector += camera.getFront() * (-moveStickState.y);
+        moveVector += camera.getForward() * (-moveStickState.y);
         moveVector += camera.getRight() * (-moveStickState.x);
-        moveVector += GLOBAL_UP_DIR * moveUpDownState.x;
+        moveVector += math::GLOBAL_UP_DIR * moveUpDownState.x;
 
         auto pos = camera.getPosition();
         pos += moveVector * cameraWalkSpeed * dt;
@@ -397,8 +392,8 @@ void App::handleFreeCameraControls(float dt)
         rotationVelocity.x = -rotateStickState.x * rotateYawSpeed;
         rotationVelocity.y = rotateStickState.y * rotatePitchSpeed;
 
-        const auto dYaw = glm::angleAxis(rotationVelocity.x * dt, GLOBAL_UP_DIR);
-        const auto dPitch = glm::angleAxis(rotationVelocity.y * dt, GLOBAL_RIGHT_DIR);
+        const auto dYaw = glm::angleAxis(rotationVelocity.x * dt, math::GLOBAL_UP_DIR);
+        const auto dPitch = glm::angleAxis(rotationVelocity.y * dt, math::GLOBAL_RIGHT_DIR);
         const auto newHeading = dYaw * camera.getHeading() * dPitch;
         camera.setHeading(newHeading);
     }
@@ -417,7 +412,7 @@ void App::render()
     glBindVertexArray(vao);
     { // render objects
         // object texture will be read from TU0
-        glProgramUniform1i(shaderProgram, FRAG_TEXTURE_UNIFORM_LOC, 0);
+        glProgramUniform1i(worldShader, FRAG_TEXTURE_UNIFORM_LOC, 0);
 
         glBindBufferRange(
             GL_UNIFORM_BUFFER,
@@ -426,10 +421,10 @@ void App::render()
             sceneDataUboOffset,
             sizeof(GlobalSceneData));
 
-        glUseProgram(shaderProgram);
+        glUseProgram(worldShader);
 
         {
-            GL_DEBUG_GROUP("opaque pass");
+            GL_DEBUG_GROUP("Opaque pass");
             gfx::setGlobalState(opaqueDrawState);
             gfx::setGlobalState({
                 .depthWriteEnabled = true,
@@ -439,11 +434,13 @@ void App::render()
         }
 
         {
-            GL_DEBUG_GROUP("transparent pass");
+            GL_DEBUG_GROUP("Transparent pass");
             gfx::setGlobalState(transparentDrawState);
             renderSceneObjects(transparentDrawList);
         }
     }
+
+    renderLines();
 
     SDL_GL_SwapWindow(window);
 }
@@ -579,4 +576,28 @@ void App::spawnCube(const glm::vec3& pos, std::size_t textureIdx, float alpha, f
     };
     object.transform.position = pos;
     objects.push_back(object);
+}
+
+void App::addLine(const glm::vec3& from, const glm::vec3& to, const glm::vec4& color)
+{
+    assert(lines.size() < MAX_LINES && "Too many lines drawn");
+    lines.push_back(LineVertex{.pos = from, .color = color});
+    lines.push_back(LineVertex{.pos = to, .color = color});
+}
+
+void App::renderLines()
+{
+    GL_DEBUG_GROUP("Debug lines pass");
+    gfx::setGlobalState(linesDrawState);
+
+    static const int VP_UNIFORM_BINDING = 0;
+    static const int LINE_VERTEX_DATA_BINDING = 0;
+
+    glNamedBufferSubData(linesBuffer.buffer, 0, sizeof(LineVertex) * lines.size(), lines.data());
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, LINE_VERTEX_DATA_BINDING, linesBuffer.buffer);
+
+    glUseProgram(linesShader);
+    const auto vp = camera.getViewProj();
+    glUniformMatrix4fv(VP_UNIFORM_BINDING, 1, GL_FALSE, glm::value_ptr(vp));
+    glDrawArrays(GL_LINES, 0, lines.size());
 }

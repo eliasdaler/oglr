@@ -4,15 +4,19 @@
 #include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
 
+#include "Transform.h"
+
 class Camera {
 public:
     void init(float fovX, float zNear, float zFar, float aspectRatio);
 
-    void setPosition(const glm::vec3& p) { position = p; }
-    const glm::vec3& getPosition() const { return position; }
+    void setPosition(const glm::vec3& p) { transform.position = p; }
+    const glm::vec3& getPosition() const { return transform.position; }
 
-    void setHeading(const glm::quat& q) { heading = glm::normalize(q); }
-    const glm::quat& getHeading() const { return heading; }
+    void setHeading(const glm::quat& q) { transform.heading = glm::normalize(q); }
+    const glm::quat& getHeading() const { return transform.heading; }
+
+    const Transform& getTransform() const { return transform; }
 
     const glm::mat4& getProjection() const { return projection; }
     glm::mat4 getView() const;
@@ -20,12 +24,11 @@ public:
 
     void lookAt(const glm::vec3& point);
 
-    glm::vec3 getFront() const;
+    glm::vec3 getForward() const;
     glm::vec3 getRight() const;
 
 private:
-    glm::vec3 position;
-    glm::quat heading;
+    Transform transform;
 
     glm::mat4 projection;
     bool orthographic{false};

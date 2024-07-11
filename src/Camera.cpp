@@ -4,13 +4,7 @@
 #include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
 
-namespace
-{
-// TODO: move to globals
-const auto GLOBAL_UP_DIR = glm::vec3{0.f, 1.f, 0.f};
-const auto GLOBAL_FRONT_DIR = glm::vec3{0.f, 0.f, 1.f};
-const auto GLOBAL_RIGHT_DIR = glm::vec3{1.f, 0.f, 0.f};
-}
+#include "GlobalAxes.h"
 
 void Camera::init(float fovX, float zNear, float zFar, float aspectRatio)
 {
@@ -29,14 +23,14 @@ void Camera::init(float fovX, float zNear, float zFar, float aspectRatio)
 
 void Camera::lookAt(const glm::vec3& point)
 {
-    auto dir = glm::normalize(position - point);
-    heading = glm::quatLookAt(dir, GLOBAL_UP_DIR);
+    auto dir = glm::normalize(transform.position - point);
+    transform.heading = glm::quatLookAt(dir, math::GLOBAL_UP_DIR);
 }
 
 glm::mat4 Camera::getView() const
 {
-    const auto target = position + heading * GLOBAL_FRONT_DIR;
-    return glm::lookAt(position, target, GLOBAL_UP_DIR);
+    const auto target = transform.position + transform.heading * math::GLOBAL_FORWARD_DIR;
+    return glm::lookAt(transform.position, target, math::GLOBAL_UP_DIR);
 }
 
 glm::mat4 Camera::getViewProj() const
@@ -44,12 +38,12 @@ glm::mat4 Camera::getViewProj() const
     return projection * getView();
 }
 
-glm::vec3 Camera::getFront() const
+glm::vec3 Camera::getForward() const
 {
-    return heading * GLOBAL_FRONT_DIR;
+    return transform.getForward();
 }
 
 glm::vec3 Camera::getRight() const
 {
-    return heading * GLOBAL_RIGHT_DIR;
+    return transform.getRight();
 }

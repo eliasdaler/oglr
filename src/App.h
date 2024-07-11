@@ -7,25 +7,9 @@
 #include "Camera.h"
 #include "GPUMesh.h"
 #include "GraphicsUtil.h"
+#include "Transform.h"
 
 #include <random>
-
-struct Transform {
-    glm::vec3 position{};
-    glm::quat heading{glm::identity<glm::quat>()};
-    glm::vec3 scale{1.f};
-
-    const glm::mat4 asMatrix() const
-    {
-        static const auto I = glm::mat4{1.f};
-        auto transformMatrix = glm::translate(I, position);
-        if (heading != glm::identity<glm::quat>()) {
-            transformMatrix *= glm::mat4_cast(heading);
-        }
-        transformMatrix = glm::scale(transformMatrix, scale);
-        return transformMatrix;
-    }
-};
 
 struct ObjectData {
     Transform transform;
@@ -55,11 +39,14 @@ private:
     void generateDrawList();
     void uploadSceneData();
     void renderSceneObjects(const std::vector<DrawInfo>& drawList);
+    void renderLines();
 
     void handleFreeCameraControls(float dt);
 
     void generateRandomObject();
     void spawnCube(const glm::vec3& pos, std::size_t textureIdx, float alpha, float startAnimAlpha);
+
+    void addLine(const glm::vec3& from, const glm::vec3& to, const glm::vec4& color);
 
     SDL_Window* window{nullptr};
     SDL_GLContext glContext{nullptr};
@@ -73,7 +60,7 @@ private:
     std::mt19937 rng;
     std::uniform_int_distribution<int> dist{1, 10};
 
-    std::uint32_t shaderProgram{};
+    std::uint32_t worldShader{};
     std::uint32_t vao{}; // empty vao
 
     std::vector<GPUMesh> meshes;
@@ -107,6 +94,8 @@ private:
     };
     std::vector<LineVertex> lines;
     GPUBuffer linesBuffer{};
+    const int MAX_LINES = 10000;
+    std::uint32_t linesShader{};
 
     int uboAlignment{4};
 
@@ -129,4 +118,5 @@ private:
     gfx::GlobalState frameStartState;
     gfx::GlobalState opaqueDrawState;
     gfx::GlobalState transparentDrawState;
+    gfx::GlobalState linesDrawState;
 };

@@ -12,6 +12,10 @@ struct GPUBuffer;
 
 namespace gfx
 {
+GLuint loadShaderProgram(
+    const std::filesystem::path& vertShaderPath,
+    const std::filesystem::path& fragShaderPath,
+    const char* debugName);
 GLuint compileShader(const std::filesystem::path& path, GLenum shaderType);
 
 GPUBuffer allocateBuffer(
