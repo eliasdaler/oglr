@@ -55,13 +55,18 @@ GLuint compileShader(const std::filesystem::path& path, GLenum shaderType)
     return shader;
 }
 
-GLuint allocateBuffer(std::size_t size, const char* debugName)
+GPUBuffer allocateBuffer(std::size_t size, const void* data, const char* debugName)
 {
     GLuint buffer;
     glCreateBuffers(1, &buffer);
-    setDebugLabel(GL_BUFFER, buffer, "sceneData");
-    glNamedBufferStorage(buffer, (GLsizeiptr)size, nullptr, GL_DYNAMIC_STORAGE_BIT);
-    return buffer;
+    glNamedBufferStorage(buffer, (GLsizeiptr)size, data, GL_DYNAMIC_STORAGE_BIT);
+    if (debugName) {
+        setDebugLabel(GL_BUFFER, buffer, debugName);
+    }
+    return {
+        .buffer = buffer,
+        .size = size,
+    };
 }
 
 int getAlignedSize(std::size_t elementSize, std::size_t align)
@@ -161,18 +166,9 @@ GPUMesh uploadMeshToGPU(const CPUMesh& cpuMesh)
         });
     }
 
-    GLuint vertexBuffer;
-    glCreateBuffers(1, &vertexBuffer);
-    glNamedBufferStorage(
-        vertexBuffer, sizeof(GPUVertex) * vertices.size(), vertices.data(), GL_DYNAMIC_STORAGE_BIT);
-
-    GLuint indexBuffer;
-    glCreateBuffers(1, &indexBuffer);
-    glNamedBufferStorage(
-        indexBuffer,
-        sizeof(std::uint32_t) * cpuMesh.indices.size(),
-        cpuMesh.indices.data(),
-        GL_DYNAMIC_STORAGE_BIT);
+    auto vertexBuffer = allocateBuffer(sizeof(GPUVertex) * vertices.size(), vertices.data());
+    auto indexBuffer =
+        allocateBuffer(sizeof(std::uint32_t) * cpuMesh.indices.size(), cpuMesh.indices.data());
 
     return GPUMesh{
         .vertexBuffer = vertexBuffer,

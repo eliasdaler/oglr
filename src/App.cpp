@@ -165,9 +165,15 @@ void App::init()
         const auto globalSceneDataSize = gfx::getAlignedSize(sizeof(GlobalSceneData), uboAlignment);
         const auto perObjectDataElementSize =
             gfx::getAlignedSize(sizeof(PerObjectData), uboAlignment);
-        allocatedBufferSize = globalSceneDataSize + perObjectDataElementSize * 100;
-        sceneDataBuffer = gfx::allocateBuffer(allocatedBufferSize, "sceneData");
-        sceneData.resize(allocatedBufferSize);
+        const auto bufSize = globalSceneDataSize + perObjectDataElementSize * 100;
+        sceneDataBuffer = gfx::allocateBuffer(bufSize, nullptr, "sceneData");
+        sceneData.resize(bufSize);
+    }
+
+    { // allocate scene data buffer
+        const auto lineVertexSize = gfx::getAlignedSize(sizeof(LineVertex), uboAlignment);
+        const auto bufSize = lineVertexSize * 100;
+        linesBuffer = gfx::allocateBuffer(bufSize, 0, "lines");
     }
 
     // we still need an empty VAO even for vertex pulling
@@ -263,10 +269,10 @@ void App::cleanup()
 {
     glDeleteTextures(textures.size(), textures.data());
     for (const auto& mesh : meshes) {
-        glDeleteBuffers(1, &mesh.indexBuffer);
-        glDeleteBuffers(1, &mesh.vertexBuffer);
+        glDeleteBuffers(1, &mesh.indexBuffer.buffer);
+        glDeleteBuffers(1, &mesh.vertexBuffer.buffer);
     }
-    glDeleteBuffers(1, &sceneDataBuffer);
+    glDeleteBuffers(1, &sceneDataBuffer.buffer);
 
     glDeleteVertexArrays(1, &vao);
     glDeleteProgram(shaderProgram);
@@ -416,7 +422,7 @@ void App::render()
         glBindBufferRange(
             GL_UNIFORM_BUFFER,
             GLOBAL_SCENE_DATA_BINDING,
-            sceneDataBuffer,
+            sceneDataBuffer.buffer,
             sceneDataUboOffset,
             sizeof(GlobalSceneData));
 
@@ -501,16 +507,15 @@ void App::uploadSceneData()
 
     // reallocate buffer if needed
     // const auto sceneDataSize = sizeof(PerObjectData) * sceneData.size();
-    if (sceneData.getData().size() > allocatedBufferSize) {
-        allocatedBufferSize = sceneData.getData().size();
-        glDeleteBuffers(1, &sceneDataBuffer);
-        sceneDataBuffer = gfx::allocateBuffer(allocatedBufferSize, "sceneData");
-        std::cout << "Reallocated UBO, new size = " << allocatedBufferSize << std::endl;
+    if (sceneData.getData().size() > sceneDataBuffer.size) {
+        glDeleteBuffers(1, &sceneDataBuffer.buffer);
+        sceneDataBuffer = gfx::allocateBuffer(sceneData.getData().size(), nullptr, "sceneData");
+        std::cout << "Reallocated UBO, new size = " << sceneData.getData().size() << std::endl;
     }
 
     // upload new data
     glNamedBufferSubData(
-        sceneDataBuffer, 0, sceneData.getData().size(), sceneData.getData().data());
+        sceneDataBuffer.buffer, 0, sceneData.getData().size(), sceneData.getData().data());
 }
 
 void App::renderSceneObjects(const std::vector<DrawInfo>& drawList)
@@ -518,13 +523,13 @@ void App::renderSceneObjects(const std::vector<DrawInfo>& drawList)
     for (const auto& drawInfo : drawList) {
         const auto& object = objects[drawInfo.objectIdx];
         const auto& mesh = meshes[object.meshIdx];
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VERTEX_DATA_BINDING, mesh.vertexBuffer);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.indexBuffer);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VERTEX_DATA_BINDING, mesh.vertexBuffer.buffer);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.indexBuffer.buffer);
 
         glBindBufferRange(
             GL_UNIFORM_BUFFER,
             PER_OBJECT_DATA_BINDING,
-            sceneDataBuffer,
+            sceneDataBuffer.buffer,
             drawInfo.uboOffset,
             sizeof(PerObjectData));
 

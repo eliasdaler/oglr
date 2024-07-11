@@ -8,12 +8,16 @@
 
 struct CPUMesh;
 struct GPUMesh;
+struct GPUBuffer;
 
 namespace gfx
 {
 GLuint compileShader(const std::filesystem::path& path, GLenum shaderType);
 
-GLuint allocateBuffer(std::size_t size, const char* debugName);
+GPUBuffer allocateBuffer(
+    std::size_t size,
+    const void* data = nullptr,
+    const char* debugName = nullptr);
 // Returns a size of an element which it should have to respect alignment of "align" bytes
 // For example:
 // * getAlignedSize(192, 256) == 256

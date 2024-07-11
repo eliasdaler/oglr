@@ -98,8 +98,15 @@ private:
         glm::mat4 model;
         glm::vec4 props; // x - alpha, yzw - unused
     };
-    std::uint32_t sceneDataBuffer{};
-    std::uint32_t allocatedBufferSize{0};
+    GPUBuffer sceneDataBuffer;
+
+    struct LineVertex {
+        glm::vec3 pos;
+        float unused;
+        glm::vec4 color;
+    };
+    std::vector<LineVertex> lines;
+    GPUBuffer linesBuffer{};
 
     int uboAlignment{4};
 

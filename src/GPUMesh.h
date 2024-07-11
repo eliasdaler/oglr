@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <glm/vec3.hpp>
 
+#include "GPUBuffer.h"
+
 struct GPUVertex {
     glm::vec3 position;
     float uv_x;
@@ -11,7 +13,7 @@ struct GPUVertex {
 };
 
 struct GPUMesh {
-    std::uint32_t vertexBuffer{};
-    std::uint32_t indexBuffer{};
+    GPUBuffer vertexBuffer{};
+    GPUBuffer indexBuffer{};
     std::uint32_t numIndices{};
 };
