@@ -52,10 +52,13 @@ Frustum createFrustumFromCamera(const Camera& camera)
 
     frustum.nearFace = {camPos + zNear * camFront, camFront};
     frustum.farFace = {camPos + frontMultFar, -camFront};
-    frustum.leftFace = {camPos, glm::cross(camUp, frontMultFar + camRight * halfHSide)};
-    frustum.rightFace = {camPos, glm::cross(frontMultFar - camRight * halfHSide, camUp)};
-    frustum.bottomFace = {camPos, glm::cross(frontMultFar + camUp * halfVSide, camRight)};
-    frustum.topFace = {camPos, glm::cross(camRight, frontMultFar - camUp * halfVSide)};
+
+    // FIXME: why is there - in from of glm::cross here?
+    // (need it to make normals point inside)
+    frustum.leftFace = {camPos, -glm::cross(camUp, frontMultFar + camRight * halfHSide)};
+    frustum.rightFace = {camPos, -glm::cross(frontMultFar - camRight * halfHSide, camUp)};
+    frustum.bottomFace = {camPos, -glm::cross(frontMultFar + camUp * halfVSide, camRight)};
+    frustum.topFace = {camPos, -glm::cross(camRight, frontMultFar - camUp * halfVSide)};
 
     return frustum;
 }

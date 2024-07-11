@@ -203,9 +203,10 @@ void App::init()
     { // init test camera
         const auto fovX = 45.f;
         const auto zNear = 0.1f;
-        const auto zFar = 10.f;
+        const auto zFar = 5.f;
         testCamera.init(fovX, zNear, zFar, (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT);
         testCamera.setPosition({2.f, 3.f, -3.f});
+        // testCamera.setPosition({0.f, 0.f, -5.f});
         testCamera.lookAt(glm::vec3{0.f, 0.f, 0.f});
     }
 
@@ -355,15 +356,7 @@ void App::update(float dt)
 
     lines.clear();
     for (auto& object : objects) {
-        const auto& pos = object.transform.position;
-        const auto& heading = object.transform.heading;
-        float lineLength = 1.f;
-        addLine(pos, pos + object.transform.getRight() * lineLength, glm::vec4{1.f, 0.f, 0.f, 1.f});
-        addLine(pos, pos + object.transform.getUp() * lineLength, glm::vec4{0.f, 1.f, 0.f, 1.f});
-        addLine(
-            pos, pos + object.transform.getForward() * lineLength, glm::vec4{0.f, 0.f, 1.f, 1.f});
-
-        // addAABBLines(object.aabb, glm::vec4{1.f, 0.f, 1.f, 1.f});
+        addAABBLines(object.worldAABB, glm::vec4{1.f, 0.f, 1.f, 1.f});
     }
 
     addFrustumLines(testCamera);
@@ -629,6 +622,16 @@ void App::addLine(const glm::vec3& from, const glm::vec3& to, const glm::vec4& c
     lines.push_back(LineVertex{.pos = to, .color = color});
 }
 
+void App::addLine(
+    const glm::vec3& from,
+    const glm::vec3& to,
+    const glm::vec4& fromColor,
+    const glm::vec4& toColor)
+{
+    lines.push_back(LineVertex{.pos = from, .color = fromColor});
+    lines.push_back(LineVertex{.pos = to, .color = toColor});
+}
+
 void App::addQuadLines(
     const glm::vec3& a,
     const glm::vec3& b,
@@ -681,21 +684,30 @@ void App::addFrustumLines(const Camera& camera)
     addQuadLines(corners[4], corners[5], corners[6], corners[7], glm::vec4{0.f, 1.f, 1.f, 1.f});
 
     // draw normals
-    auto normalLength = 0.5f;
-    auto normalColor = glm::vec4{1.f, 0.5f, 0.5f, 1.f};
-    auto frustum = util::createFrustumFromCamera(camera);
+    {
+        const auto normalLength = 0.25f;
+        const auto normalColor = glm::vec4{1.f, 0.0f, 1.0f, 1.f};
+        const auto normalColorEnd = glm::vec4{0.f, 1.f, 1.f, 1.f};
+        const auto frustum = util::createFrustumFromCamera(camera);
 
-    const auto npc = (corners[0] + corners[1] + corners[2] + corners[3]) / 4.f;
-    addLine(npc, npc + frustum.nearFace.normal * normalLength, normalColor);
+        const auto npc = (corners[0] + corners[1] + corners[2] + corners[3]) / 4.f;
+        addLine(npc, npc + frustum.nearFace.normal * normalLength, normalColor, normalColorEnd);
 
-    const auto fpc = (corners[4] + corners[5] + corners[6] + corners[7]) / 4.f;
-    addLine(fpc, fpc + frustum.nearFace.normal * normalLength, normalColor);
+        const auto fpc = (corners[4] + corners[5] + corners[6] + corners[7]) / 4.f;
+        addLine(fpc, fpc + frustum.farFace.normal * normalLength, normalColor, normalColorEnd);
 
-    const auto lpc = (corners[4] + corners[5] + corners[1] + corners[0]) / 4.f;
-    addLine(lpc, lpc + frustum.nearFace.normal * normalLength, normalColor);
+        const auto lpc = (corners[4] + corners[5] + corners[1] + corners[0]) / 4.f;
+        addLine(lpc, lpc + frustum.leftFace.normal * normalLength, normalColor, normalColorEnd);
 
-    const auto rpc = (corners[7] + corners[6] + corners[2] + corners[3]) / 4.f;
-    addLine(rpc, rpc + frustum.nearFace.normal * normalLength, normalColor);
+        const auto rpc = (corners[7] + corners[6] + corners[2] + corners[3]) / 4.f;
+        addLine(rpc, rpc + frustum.rightFace.normal * normalLength, normalColor, normalColorEnd);
+
+        const auto bpc = (corners[0] + corners[4] + corners[7] + corners[3]) / 4.f;
+        addLine(bpc, bpc + frustum.bottomFace.normal * normalLength, normalColor, normalColorEnd);
+
+        const auto tpc = (corners[1] + corners[5] + corners[6] + corners[2]) / 4.f;
+        addLine(tpc, tpc + frustum.topFace.normal * normalLength, normalColor, normalColorEnd);
+    }
 }
 
 AABB App::calculateWorldAABB(const ObjectData& object)

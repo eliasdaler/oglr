@@ -50,6 +50,11 @@ private:
     void spawnCube(const glm::vec3& pos, std::size_t textureIdx, float alpha);
 
     void addLine(const glm::vec3& from, const glm::vec3& to, const glm::vec4& color);
+    void addLine(
+        const glm::vec3& from,
+        const glm::vec3& to,
+        const glm::vec4& fromColor,
+        const glm::vec4& toColor);
     void addQuadLines(
         const glm::vec3& a,
         const glm::vec3& b,
