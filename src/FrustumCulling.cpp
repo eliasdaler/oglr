@@ -45,21 +45,17 @@ Frustum createFrustumFromCamera(const Camera& camera)
     Frustum frustum;
 
     // NOTE: if clipNearZ == 0, then farFace = {{m[0][2], m[1][2], m[2][2]}, m[3][2]}
-    frustum.nearFace =
-        {glm::vec3{m[0][3] + m[0][2], m[1][3] + m[1][2], m[2][3] + m[2][2]}, m[3][3] + m[3][2]};
+    frustum.nearFace = {m[0][3] + m[0][2], m[1][3] + m[1][2], m[2][3] + m[2][2], m[3][3] + m[3][2]};
 
-    frustum.farFace =
-        {glm::vec3{m[0][3] - m[0][2], m[1][3] - m[1][2], m[2][3] - m[2][2]}, m[3][3] - m[3][2]};
+    frustum.farFace = {m[0][3] - m[0][2], m[1][3] - m[1][2], m[2][3] - m[2][2], m[3][3] - m[3][2]};
 
-    frustum.leftFace =
-        {glm::vec3{m[0][3] + m[0][0], m[1][3] + m[1][0], m[2][3] + m[2][0]}, m[3][3] + m[3][0]};
-    frustum.rightFace =
-        {glm::vec3{m[0][3] - m[0][0], m[1][3] - m[1][0], m[2][3] - m[2][0]}, m[3][3] - m[3][0]};
+    frustum.leftFace = {m[0][3] + m[0][0], m[1][3] + m[1][0], m[2][3] + m[2][0], m[3][3] + m[3][0]};
+    frustum
+        .rightFace = {m[0][3] - m[0][0], m[1][3] - m[1][0], m[2][3] - m[2][0], m[3][3] - m[3][0]};
 
-    frustum.bottomFace =
-        {glm::vec3{m[0][3] + m[0][1], m[1][3] + m[1][1], m[2][3] + m[2][1]}, m[3][3] + m[3][2]};
-    frustum.topFace =
-        {glm::vec3{m[0][3] - m[0][1], m[1][3] - m[1][1], m[2][3] - m[2][1]}, m[3][3] - m[3][2]};
+    frustum
+        .bottomFace = {m[0][3] + m[0][1], m[1][3] + m[1][1], m[2][3] + m[2][1], m[3][3] + m[3][2]};
+    frustum.topFace = {m[0][3] - m[0][1], m[1][3] - m[1][1], m[2][3] - m[2][1], m[3][3] - m[3][2]};
 
     return frustum;
 }
@@ -109,5 +105,4 @@ bool isInFrustum(const Frustum& frustum, const Sphere& s)
     }
     return res;
 }
-
 }

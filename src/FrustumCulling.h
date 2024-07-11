@@ -18,11 +18,16 @@ struct Frustum {
     struct Plane {
         Plane() = default;
 
-        Plane(const glm::vec3& n, float d) : n(-glm::normalize(n)), d(-d) {}
-
         // the plane equation is ai+bj+ck+d=0, where (i,j,k) is basis
-        glm::vec3 n{0.f, 1.f, 0.f}; // (a, b, c)
-        float d{0.f}; // d
+        Plane(float a, float b, float c, float d)
+        {
+            const auto mag = glm::length(glm::vec3{a, b, c});
+            this->n = -glm::vec3{a, b, c} / mag;
+            this->d = -d / mag;
+        }
+
+        glm::vec3 n{0.f, 1.f, 0.f};
+        float d{0.f};
 
         float getSignedDistanceToPlane(const glm::vec3& point) const
         {

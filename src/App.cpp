@@ -206,7 +206,7 @@ void App::init()
         const auto zFar = 7.5f;
         testCamera.init(fovX, zNear, zFar, (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT);
         testCamera.setPosition({2.f, 3.f, -3.f});
-        // testCamera.setPosition({0.f, 0.f, -5.f});
+        testCamera.setPosition({0.f, 0.f, -2.f});
         testCamera.lookAt(glm::vec3{0.f, 0.f, 0.f});
     }
 
@@ -356,6 +356,10 @@ void App::update(float dt)
     }
 
     addFrustumLines(testCamera);
+
+    addLine(glm::vec3{0.f, 0.f, 0.f}, glm::vec3{1.f, 0.f, 0.f}, glm::vec4{1.f, 0.f, 0.f, 1.f});
+    addLine(glm::vec3{0.f, 0.f, 0.f}, glm::vec3{0.f, 1.f, 0.f}, glm::vec4{0.f, 1.f, 0.f, 1.f});
+    addLine(glm::vec3{0.f, 0.f, 0.f}, glm::vec3{0.f, 0.f, 1.f}, glm::vec4{0.f, 0.f, 1.f, 1.f});
 }
 
 void App::handleFreeCameraControls(float dt)
