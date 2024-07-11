@@ -47,7 +47,14 @@ private:
     void spawnCube(const glm::vec3& pos, std::size_t textureIdx, float alpha, float startAnimAlpha);
 
     void addLine(const glm::vec3& from, const glm::vec3& to, const glm::vec4& color);
+    void addQuadLines(
+        const glm::vec3& a,
+        const glm::vec3& b,
+        const glm::vec3& c,
+        const glm::vec3& d,
+        const glm::vec4& color);
     void addAABBLines(const AABB& aabb, const Transform& transform, const glm::vec4& color);
+    void addFrustumLines(const Camera& camera);
 
     SDL_Window* window{nullptr};
     SDL_GLContext glContext{nullptr};
@@ -70,6 +77,7 @@ private:
     std::vector<ObjectData> objects;
 
     Camera camera;
+    Camera testCamera;
 
     float timer{0.f};
     float timeToSpawnNewCube{0.25f};

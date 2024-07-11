@@ -17,6 +17,7 @@ add_subdirectory(third_party)
 add_executable(app
   src/GLDebugCallback.cpp
   src/GraphicsUtil.cpp
+  src/FrustumCulling.cpp
   src/ImageLoader.cpp
   src/AABB.cpp
   src/Camera.cpp

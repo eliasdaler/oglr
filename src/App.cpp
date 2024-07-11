@@ -8,6 +8,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/compatibility.hpp> // lerp for vec3
 
+#include "FrustumCulling.h"
 #include "GLDebugCallback.h"
 #include "GlobalAxes.h"
 #include "GraphicsUtil.h"
@@ -127,7 +128,7 @@ void App::init()
 
     // make lines thicker (won't work everywhere, but whatever)
     glEnable(GL_LINE_SMOOTH);
-    glLineWidth(3.f);
+    glLineWidth(2.f);
 
     glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &uboAlignment);
 
@@ -193,8 +194,16 @@ void App::init()
         const auto zNear = 0.1f;
         const auto zFar = 1000.f;
         camera.init(fovX, zNear, zFar, (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT);
-        camera.setPosition(glm::vec3{-5.f, 10.f, -50.0f});
-        // camera.lookAt(glm::vec3{0.f, 2.f, 0.f});
+        camera.setPosition({0.f, 0.5f, -10.f});
+    }
+
+    { // init test camera
+        const auto fovX = 45.f;
+        const auto zNear = 0.1f;
+        const auto zFar = 10.f;
+        testCamera.init(fovX, zNear, zFar, (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT);
+        testCamera.setPosition({2.f, 3.f, -3.f});
+        testCamera.lookAt(glm::vec3{0.f, 0.f, 0.f});
     }
 
     auto numObjectsToSpawn = dist(rng);
@@ -212,8 +221,6 @@ void App::init()
     spawnCube({0.f, 0.f, 2.5f}, 1, 0.777f, 0.f);
     spawnCube({0.f, 0.f, 5.0f}, 0, 0.f, -1.5f);
     spawnCube({0.f, 0.f, 7.5f}, 0, 0.f, -1.25f);
-
-    camera.setPosition({0.f, 0.5f, -10.f});
 
     // init lights
     sunlightColor = glm::vec3{0.65, 0.4, 0.3};
@@ -361,6 +368,8 @@ void App::update(float dt)
 
         addAABBLines(meshes[object.meshIdx].aabb, object.transform, glm::vec4{1.f, 0.f, 1.f, 1.f});
     }
+
+    addFrustumLines(testCamera);
 }
 
 void App::handleFreeCameraControls(float dt)
@@ -583,9 +592,21 @@ void App::spawnCube(const glm::vec3& pos, std::size_t textureIdx, float alpha, f
 
 void App::addLine(const glm::vec3& from, const glm::vec3& to, const glm::vec4& color)
 {
-    assert(lines.size() < MAX_LINES && "Too many lines drawn");
     lines.push_back(LineVertex{.pos = from, .color = color});
     lines.push_back(LineVertex{.pos = to, .color = color});
+}
+
+void App::addQuadLines(
+    const glm::vec3& a,
+    const glm::vec3& b,
+    const glm::vec3& c,
+    const glm::vec3& d,
+    const glm::vec4& color)
+{
+    addLine(a, b, color);
+    addLine(b, c, color);
+    addLine(c, d, color);
+    addLine(d, a, color);
 }
 
 void App::addAABBLines(const AABB& aabb, const Transform& transform, const glm::vec4& color)
@@ -606,26 +627,29 @@ void App::addAABBLines(const AABB& aabb, const Transform& transform, const glm::
     for (auto& point : points) {
         point = glm::vec3(tm * glm::vec4{point, 1.f});
     }
-    std::vector<std::pair<std::size_t, std::size_t>> lineIndices = {
-        // bottom quad
-        {0, 1},
-        {1, 2},
-        {2, 3},
-        {0, 3},
-        // upper quad
-        {4, 5},
-        {5, 6},
-        {6, 7},
-        {7, 4},
-        // side lines
-        {2, 6},
-        {1, 5},
-        {3, 7},
-        {0, 4},
+    std::vector<std::array<std::size_t, 4>> quadIndices = {
+        {0, 1, 2, 3},
+        {4, 5, 6, 7},
+        {1, 2, 6, 5},
+        {0, 3, 7, 4},
     };
-    for (const auto& li : lineIndices) {
-        addLine(points[li.first], points[li.second], color);
+    for (const auto& quad : quadIndices) {
+        addQuadLines(points[quad[0]], points[quad[1]], points[quad[2]], points[quad[3]], color);
     }
+}
+
+void App::addFrustumLines(const Camera& camera)
+{
+    const auto corners = util::calculateFrustumCornersWorldSpace(camera);
+
+    // left plane
+    addQuadLines(corners[4], corners[5], corners[1], corners[0], glm::vec4{1.f, 1.f, 0.f, 1.f});
+    // right plane
+    addQuadLines(corners[7], corners[6], corners[2], corners[3], glm::vec4{1.f, 1.f, 0.f, 1.f});
+    // near plane
+    addQuadLines(corners[0], corners[1], corners[2], corners[3], glm::vec4{0.f, 1.f, 1.f, 1.f});
+    // far plane
+    addQuadLines(corners[4], corners[5], corners[6], corners[7], glm::vec4{0.f, 1.f, 1.f, 1.f});
 }
 
 void App::renderLines()
@@ -635,6 +659,12 @@ void App::renderLines()
 
     static const int VP_UNIFORM_BINDING = 0;
     static const int LINE_VERTEX_DATA_BINDING = 0;
+
+    // realloc buffer if run out of space
+    while (sizeof(LineVertex) * lines.size() > linesBuffer.size) {
+        glDeleteBuffers(1, &linesBuffer.buffer);
+        linesBuffer = gfx::allocateBuffer(linesBuffer.size * 2, nullptr, "lines");
+    }
 
     glNamedBufferSubData(linesBuffer.buffer, 0, sizeof(LineVertex) * lines.size(), lines.data());
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, LINE_VERTEX_DATA_BINDING, linesBuffer.buffer);
