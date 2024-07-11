@@ -2,8 +2,6 @@
 
 #include "Camera.h"
 
-#include <cstdio>
-
 namespace util
 {
 std::array<glm::vec3, 8> calculateFrustumCornersWorldSpace(const Camera& camera)
@@ -67,9 +65,9 @@ Frustum createFrustumFromCamera(const Camera& camera)
 
 bool isInFrustum(const Frustum& frustum, const AABB& aabb)
 {
-    auto c = (aabb.max + aabb.min) / 2.f;
+    /* auto c = (aabb.max + aabb.min) / 2.f;
     auto r = (aabb.max.z - aabb.min.z) / 2.f;
-    return isInFrustum(frustum, Sphere{.center = c, .radius = r});
+    return isInFrustum(frustum, Sphere{.center = c, .radius = r}); */
 
     bool ret = true;
     for (int i = 0; i < 6; ++i) {

@@ -26,9 +26,6 @@ struct Frustum {
             this->d = d / mag;
         }
 
-        Plane(glm::vec3 p, glm::vec3 n) : n(glm::normalize(n)), d(-glm::dot(p, glm::normalize(n)))
-        {}
-
         glm::vec3 n{0.f, 1.f, 0.f};
         float d{0.f};
 
