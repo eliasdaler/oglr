@@ -203,7 +203,7 @@ void App::init()
     { // init test camera
         const auto fovX = 45.f;
         const auto zNear = 0.1f;
-        const auto zFar = 5.f;
+        const auto zFar = 7.5f;
         testCamera.init(fovX, zNear, zFar, (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT);
         testCamera.setPosition({2.f, 3.f, -3.f});
         // testCamera.setPosition({0.f, 0.f, -5.f});
@@ -463,7 +463,7 @@ void App::generateDrawList()
 
         object.worldAABB = calculateWorldAABB(object);
         if (!util::isInFrustum(frustum, object.worldAABB)) {
-            continue;
+            // continue;
         }
 
         const auto distToCamera = glm::length(camera.getPosition() - object.transform.position);
@@ -696,22 +696,22 @@ void App::addFrustumLines(const Camera& camera)
         const auto frustum = util::createFrustumFromCamera(camera);
 
         const auto npc = (corners[0] + corners[1] + corners[2] + corners[3]) / 4.f;
-        addLine(npc, npc + frustum.nearFace.normal * normalLength, normalColor, normalColorEnd);
+        addLine(npc, npc + frustum.nearFace.n * normalLength, normalColor, normalColorEnd);
 
         const auto fpc = (corners[4] + corners[5] + corners[6] + corners[7]) / 4.f;
-        addLine(fpc, fpc + frustum.farFace.normal * normalLength, normalColor, normalColorEnd);
+        addLine(fpc, fpc + frustum.farFace.n * normalLength, {1.f, 0.f, 0.f, 1.f}, normalColorEnd);
 
         const auto lpc = (corners[4] + corners[5] + corners[1] + corners[0]) / 4.f;
-        addLine(lpc, lpc + frustum.leftFace.normal * normalLength, normalColor, normalColorEnd);
+        addLine(lpc, lpc + frustum.leftFace.n * normalLength, normalColor, normalColorEnd);
 
         const auto rpc = (corners[7] + corners[6] + corners[2] + corners[3]) / 4.f;
-        addLine(rpc, rpc + frustum.rightFace.normal * normalLength, normalColor, normalColorEnd);
+        addLine(rpc, rpc + frustum.rightFace.n * normalLength, normalColor, normalColorEnd);
 
         const auto bpc = (corners[0] + corners[4] + corners[7] + corners[3]) / 4.f;
-        addLine(bpc, bpc + frustum.bottomFace.normal * normalLength, normalColor, normalColorEnd);
+        addLine(bpc, bpc + frustum.bottomFace.n * normalLength, normalColor, normalColorEnd);
 
         const auto tpc = (corners[1] + corners[5] + corners[6] + corners[2]) / 4.f;
-        addLine(tpc, tpc + frustum.topFace.normal * normalLength, normalColor, normalColorEnd);
+        addLine(tpc, tpc + frustum.topFace.n * normalLength, normalColor, normalColorEnd);
     }
 }
 

@@ -9,21 +9,24 @@
 
 class Camera;
 
+struct Sphere {
+    glm::vec3 center;
+    float radius;
+};
+
 struct Frustum {
     struct Plane {
         Plane() = default;
-        Plane(const glm::vec3& p1, const glm::vec3& norm) :
-            normal(glm::normalize(norm)), distance(glm::dot(normal, p1))
-        {}
 
-        glm::vec3 normal{0.f, 1.f, 0.f};
+        Plane(const glm::vec3& n, float d) : n(-glm::normalize(n)), d(-d) {}
 
-        // distance from the origin to the nearest point in the plane
-        float distance{0.f};
+        // the plane equation is ai+bj+ck+d=0, where (i,j,k) is basis
+        glm::vec3 n{0.f, 1.f, 0.f}; // (a, b, c)
+        float d{0.f}; // d
 
         float getSignedDistanceToPlane(const glm::vec3& point) const
         {
-            return glm::dot(normal, point) - distance;
+            return glm::dot(n, point) + d;
         }
     };
 
@@ -48,6 +51,7 @@ struct Frustum {
         }
     }
 
+    // Note: normals point inward
     Plane farFace;
     Plane nearFace;
 
@@ -63,4 +67,5 @@ namespace util
 std::array<glm::vec3, 8> calculateFrustumCornersWorldSpace(const Camera& camera);
 Frustum createFrustumFromCamera(const Camera& camera);
 bool isInFrustum(const Frustum& frustum, const AABB& aabb);
+bool isInFrustum(const Frustum& frustum, const Sphere& s);
 }
