@@ -5,6 +5,7 @@
 #include <SDL2/SDL.h>
 
 #include "Camera.h"
+#include "FrustumCulling.h"
 #include "GPUMesh.h"
 #include "GraphicsUtil.h"
 #include "Transform.h"
@@ -49,6 +50,8 @@ private:
     void generateRandomObject();
     void spawnCube(const glm::vec3& pos, std::size_t textureIdx, float alpha);
 
+    Frustum getFrustum() const;
+
     void addLine(const glm::vec3& from, const glm::vec3& to, const glm::vec4& color);
     void addLine(
         const glm::vec3& from,
@@ -87,9 +90,12 @@ private:
 
     Camera camera;
     Camera testCamera;
+    bool useTestCameraForCulling{true};
+    bool drawAABBs{true};
+    bool drawWireframes{true};
 
     float timer{0.f};
-    float timeToSpawnNewObject{1000.25f};
+    float timeToSpawnNewObject{0.25f};
 
     struct GlobalSceneData {
         glm::mat4 projection;

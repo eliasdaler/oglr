@@ -8,6 +8,10 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/compatibility.hpp> // lerp for vec3
 
+#include <imgui.h>
+#include <imgui_impl_opengl3.h>
+#include <imgui_impl_sdl2.h>
+
 #include "FrustumCulling.h"
 #include "GLDebugCallback.h"
 #include "GlobalAxes.h"
@@ -131,6 +135,12 @@ void App::init()
     glLineWidth(2.f);
 
     glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &uboAlignment);
+
+    { // imgui init
+        ImGui::CreateContext();
+        ImGui_ImplSDL2_InitForOpenGL(window, glContext);
+        ImGui_ImplOpenGL3_Init("#version 460 core");
+    }
 
     { // shaders
         worldShader = gfx::
@@ -314,9 +324,16 @@ void App::run()
                     isRunning = false;
                     return;
                 }
+                ImGui_ImplSDL2_ProcessEvent(&event);
             }
 
+            ImGui_ImplOpenGL3_NewFrame();
+            ImGui_ImplSDL2_NewFrame();
+            ImGui::NewFrame();
+
             update(dt);
+            ImGui::Render();
+
             accumulator -= dt;
         }
 
@@ -347,19 +364,35 @@ void App::update(float dt)
     // rotate objects
     static const auto rotationSpeed = glm::radians(45.f);
     for (auto& object : objects) {
-        // object.transform.heading *= glm::angleAxis(rotationSpeed * dt, glm::vec3{1.f, 1.f, 0.f});
+        object.transform.heading *= glm::angleAxis(rotationSpeed * dt, glm::vec3{1.f, 1.f, 0.f});
     }
 
     lines.clear();
-    for (auto& object : objects) {
-        addAABBLines(object.worldAABB, glm::vec4{1.f, 0.f, 1.f, 1.f});
+
+    if (drawAABBs) {
+        for (auto& object : objects) {
+            addAABBLines(object.worldAABB, glm::vec4{1.f, 0.f, 1.f, 1.f});
+        }
     }
 
     addFrustumLines(testCamera);
 
-    addLine(glm::vec3{0.f, 0.f, 0.f}, glm::vec3{1.f, 0.f, 0.f}, glm::vec4{1.f, 0.f, 0.f, 1.f});
-    addLine(glm::vec3{0.f, 0.f, 0.f}, glm::vec3{0.f, 1.f, 0.f}, glm::vec4{0.f, 1.f, 0.f, 1.f});
-    addLine(glm::vec3{0.f, 0.f, 0.f}, glm::vec3{0.f, 0.f, 1.f}, glm::vec4{0.f, 0.f, 1.f, 1.f});
+    { // world origin
+        addLine(glm::vec3{0.f, 0.f, 0.f}, glm::vec3{1.f, 0.f, 0.f}, glm::vec4{1.f, 0.f, 0.f, 1.f});
+        addLine(glm::vec3{0.f, 0.f, 0.f}, glm::vec3{0.f, 1.f, 0.f}, glm::vec4{0.f, 1.f, 0.f, 1.f});
+        addLine(glm::vec3{0.f, 0.f, 0.f}, glm::vec3{0.f, 0.f, 1.f}, glm::vec4{0.f, 0.f, 1.f, 1.f});
+    }
+
+    ImGui::Begin("Debug");
+    ImGui::Text("Total objects: %d", (int)objects.size());
+    ImGui::Text("Drawn objects: %d", (int)drawList.size());
+    ImGui::Checkbox("Use test camera for culling", &useTestCameraForCulling);
+    ImGui::Checkbox("Draw AABBs", &drawAABBs);
+    ImGui::Checkbox("Draw wireframes", &drawWireframes);
+    if (ImGui::Button("Update test camera")) {
+        testCamera = camera;
+    }
+    ImGui::End();
 }
 
 void App::handleFreeCameraControls(float dt)
@@ -447,7 +480,16 @@ void App::render()
         gfx::setGlobalState(linesDrawState);
 
         renderLines();
-        renderWireframes(drawList);
+        if (drawWireframes) {
+            renderWireframes(drawList);
+        }
+    }
+
+    {
+        GL_DEBUG_GROUP("Draw ImGui");
+        glDisable(GL_FRAMEBUFFER_SRGB); // kinda cringe, but works
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        glEnable(GL_FRAMEBUFFER_SRGB);
     }
 
     SDL_GL_SwapWindow(window);
@@ -455,7 +497,7 @@ void App::render()
 
 void App::generateDrawList()
 {
-    Frustum frustum = util::createFrustumFromCamera(testCamera);
+    const auto frustum = getFrustum();
 
     drawList.clear();
 
@@ -467,7 +509,7 @@ void App::generateDrawList()
 
         object.worldAABB = calculateWorldAABB(object);
         if (!util::isInFrustum(frustum, object.worldAABB)) {
-            // continue;
+            continue;
         }
 
         const auto distToCamera = glm::length(camera.getPosition() - object.transform.position);
@@ -559,8 +601,7 @@ void App::renderWireframes(const std::vector<DrawInfo>& drawList)
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glUseProgram(solidColorShader);
 
-    Frustum frustum = util::createFrustumFromCamera(testCamera);
-
+    Frustum frustum = getFrustum();
     for (const auto& drawInfo : drawList) {
         const auto& object = objects[drawInfo.objectIdx];
         const auto& mesh = meshes[object.meshIdx];
@@ -759,4 +800,9 @@ void App::renderLines()
     const auto vp = camera.getViewProj();
     glUniformMatrix4fv(VP_UNIFORM_BINDING, 1, GL_FALSE, glm::value_ptr(vp));
     glDrawArrays(GL_LINES, 0, lines.size());
+}
+
+Frustum App::getFrustum() const
+{
+    return util::createFrustumFromCamera(useTestCameraForCulling ? testCamera : camera);
 }

@@ -49,6 +49,7 @@ target_link_libraries(app PUBLIC
   glad::glad
   glm::glm
   stb::image
+  imgui::imgui
 )
 
 # glm
