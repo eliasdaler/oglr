@@ -5,7 +5,7 @@
 #include <SDL2/SDL.h>
 
 #include "Camera.h"
-#include "FrustumCulling.h"
+#include "DebugRenderer.h"
 #include "GPUMesh.h"
 #include "GraphicsUtil.h"
 #include "Transform.h"
@@ -26,6 +26,8 @@ struct DrawInfo {
     float distToCamera;
 };
 
+struct Frustum;
+
 class App {
 public:
     void start();
@@ -41,7 +43,6 @@ private:
     void uploadSceneData();
     void renderSceneObjects(const std::vector<DrawInfo>& drawList);
     void renderWireframes(const std::vector<DrawInfo>& drawList);
-    void renderLines();
 
     AABB calculateWorldAABB(const ObjectData& object);
 
@@ -51,21 +52,6 @@ private:
     void spawnCube(const glm::vec3& pos, std::size_t textureIdx, float alpha);
 
     Frustum getFrustum() const;
-
-    void addLine(const glm::vec3& from, const glm::vec3& to, const glm::vec4& color);
-    void addLine(
-        const glm::vec3& from,
-        const glm::vec3& to,
-        const glm::vec4& fromColor,
-        const glm::vec4& toColor);
-    void addQuadLines(
-        const glm::vec3& a,
-        const glm::vec3& b,
-        const glm::vec3& c,
-        const glm::vec3& d,
-        const glm::vec4& color);
-    void addAABBLines(const AABB& aabb, const glm::vec4& color);
-    void addFrustumLines(const Camera& camera);
 
     SDL_Window* window{nullptr};
     SDL_GLContext glContext{nullptr};
@@ -111,16 +97,6 @@ private:
     };
     GPUBuffer sceneDataBuffer;
 
-    struct LineVertex {
-        glm::vec3 pos;
-        float unused;
-        glm::vec4 color;
-    };
-    std::vector<LineVertex> lines;
-    GPUBuffer linesBuffer{};
-    const int MAX_LINES = 10000;
-    std::uint32_t linesShader{};
-
     int uboAlignment{4};
 
     gfx::BumpAllocator sceneData;
@@ -142,5 +118,7 @@ private:
     gfx::GlobalState frameStartState;
     gfx::GlobalState opaqueDrawState;
     gfx::GlobalState transparentDrawState;
-    gfx::GlobalState linesDrawState;
+    gfx::GlobalState wireframesDrawState;
+
+    DebugRenderer debugRenderer;
 };

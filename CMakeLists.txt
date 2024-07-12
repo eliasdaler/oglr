@@ -20,6 +20,7 @@ add_executable(app
   src/FrustumCulling.cpp
   src/ImageLoader.cpp
   src/AABB.cpp
+  src/DebugRenderer.cpp
   src/Camera.cpp
   src/App.cpp
   src/main.cpp
