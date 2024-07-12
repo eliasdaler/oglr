@@ -3,7 +3,7 @@
 
 namespace util
 {
-AABB calculateMeshAABB(const CPUMesh& mesh)
+AABB calculateAABB(const CPUMesh& mesh)
 {
     float minX = std::numeric_limits<float>::max();
     float maxX = std::numeric_limits<float>::lowest();

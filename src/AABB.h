@@ -15,7 +15,7 @@ struct AABB {
 
 namespace util
 {
-AABB calculateMeshAABB(const CPUMesh& mesh);
+AABB calculateAABB(const CPUMesh& mesh);
 AABB calculateAABB(const std::vector<glm::vec3>& points);
 AABB calculateWorldAABB(const AABB& aabbLocal, const glm::mat4& tm);
 }

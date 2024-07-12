@@ -42,6 +42,7 @@ private:
     void generateDrawList();
     void uploadSceneData();
     void renderSceneObjects(const std::vector<DrawInfo>& drawList);
+    void renderDebugObjects();
     void renderWireframes(const std::vector<DrawInfo>& drawList);
 
     void handleFreeCameraControls(float dt);

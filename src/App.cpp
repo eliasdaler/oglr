@@ -262,11 +262,11 @@ void App::init()
 
 void App::cleanup()
 {
-    glDeleteTextures(textures.size(), textures.data());
     for (const auto& mesh : meshes) {
         glDeleteBuffers(1, &mesh.indexBuffer.buffer);
         glDeleteBuffers(1, &mesh.vertexBuffer.buffer);
     }
+    glDeleteTextures(textures.size(), textures.data());
     glDeleteBuffers(1, &sceneDataBuffer.buffer);
 
     glDeleteVertexArrays(1, &vao);
@@ -364,24 +364,6 @@ void App::update(float dt)
         object.transform.heading *= glm::angleAxis(rotationSpeed * dt, glm::vec3{1.f, 1.f, 0.f});
     }
 
-    debugRenderer.beginDrawing();
-    if (drawAABBs) {
-        for (auto& object : objects) {
-            debugRenderer.addAABBLines(object.worldAABB, glm::vec4{1.f, 0.f, 1.f, 1.f});
-        }
-    }
-
-    debugRenderer.addFrustumLines(testCamera);
-
-    { // world origin
-        debugRenderer.addLine(
-            glm::vec3{0.f, 0.f, 0.f}, glm::vec3{1.f, 0.f, 0.f}, glm::vec4{1.f, 0.f, 0.f, 1.f});
-        debugRenderer.addLine(
-            glm::vec3{0.f, 0.f, 0.f}, glm::vec3{0.f, 1.f, 0.f}, glm::vec4{0.f, 1.f, 0.f, 1.f});
-        debugRenderer.addLine(
-            glm::vec3{0.f, 0.f, 0.f}, glm::vec3{0.f, 0.f, 1.f}, glm::vec4{0.f, 0.f, 1.f, 1.f});
-    }
-
     ImGui::Begin("Debug");
     ImGui::Text("Total objects: %d", (int)objects.size());
     ImGui::Text("Drawn objects: %d", (int)drawList.size());
@@ -476,11 +458,7 @@ void App::render()
 
     {
         GL_DEBUG_GROUP("Debug primitives");
-        debugRenderer.render(camera);
-        if (drawWireframes) {
-            gfx::setGlobalState(wireframesDrawState);
-            renderWireframes(drawList);
-        }
+        renderDebugObjects();
     }
 
     {
@@ -595,6 +573,34 @@ void App::renderSceneObjects(const std::vector<DrawInfo>& drawList)
         // glBindTextureUnit(0, textures[object.textureIdx]);
         glBindTextureUnit(0, textures[object.alpha != 1.f ? 0 : 1]);
         glDrawElements(GL_TRIANGLES, mesh.numIndices, GL_UNSIGNED_INT, 0);
+    }
+}
+
+void App::renderDebugObjects()
+{
+    debugRenderer.beginDrawing();
+    if (drawAABBs) {
+        for (auto& object : objects) {
+            debugRenderer.addAABBLines(object.worldAABB, glm::vec4{1.f, 0.f, 1.f, 1.f});
+        }
+    }
+
+    debugRenderer.addFrustumLines(testCamera);
+
+    { // world origin
+        debugRenderer.addLine(
+            glm::vec3{0.f, 0.f, 0.f}, glm::vec3{1.f, 0.f, 0.f}, glm::vec4{1.f, 0.f, 0.f, 1.f});
+        debugRenderer.addLine(
+            glm::vec3{0.f, 0.f, 0.f}, glm::vec3{0.f, 1.f, 0.f}, glm::vec4{0.f, 1.f, 0.f, 1.f});
+        debugRenderer.addLine(
+            glm::vec3{0.f, 0.f, 0.f}, glm::vec3{0.f, 0.f, 1.f}, glm::vec4{0.f, 0.f, 1.f, 1.f});
+    }
+
+    debugRenderer.render(camera);
+
+    if (drawWireframes) {
+        gfx::setGlobalState(wireframesDrawState);
+        renderWireframes(drawList);
     }
 }
 
