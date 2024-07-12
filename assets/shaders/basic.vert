@@ -19,6 +19,11 @@ layout (binding = 0, std140) uniform GlobalSceneData
 
     vec4 pointLightPositionAndRange;
     vec4 pointLightColorAndIntensity;
+
+    vec4 spotLightPositionAndRange;
+    vec4 spotLightColorAndIntensity;
+    vec4 spotLightScaleOffsetAndUnused;
+    vec4 spotLightDirAndUnused;
 };
 
 layout (binding = 1, std140) uniform PerObjectData

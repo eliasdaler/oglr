@@ -88,6 +88,15 @@ void sortDrawList(std::vector<DrawInfo>& drawList, SortOrder sortOrder)
         });
 }
 
+glm::vec2 calculateSpotLightScaleOffset(float innerConeAngle, float outerConeAngle)
+{
+    // See KHR_lights_punctual spec - formulas are taken from it
+    glm::vec2 scaleOffset;
+    scaleOffset.x = 1.f / std::max(0.001f, std::cos(innerConeAngle) - std::cos(outerConeAngle));
+    scaleOffset.y = -std::cos(outerConeAngle) * scaleOffset.x;
+    return scaleOffset;
+}
+
 } // end of anonymous namespace
 
 void App::start()
@@ -233,13 +242,13 @@ void App::init()
     spawnObject({}, planeMeshIdx, 2, 1.f);
     // some cubes
     spawnObject({0.f, 1.f, 0.f}, cubeMeshIdx, 0, 1.0f);
-    spawnObject({0.f, 1.f, 2.5f}, cubeMeshIdx, 1, 0.7f);
+    spawnObject({0.f, 1.f, 2.5f}, cubeMeshIdx, 1, 1.f);
     spawnObject({0.f, 1.f, 5.0f}, cubeMeshIdx, 0, 1.f);
-    spawnObject({0.f, 1.f, 7.5f}, cubeMeshIdx, 0, 0.7f);
+    spawnObject({0.f, 1.f, 7.5f}, cubeMeshIdx, 1, 1.f);
 
     { // init lights
         sunlightColor = glm::vec4{0.65f, 0.4f, 0.3f, 1.f};
-        sunlightIntensity = 1.5f;
+        sunlightIntensity = 0.25f;
         sunlightDir = glm::normalize(glm::vec3(1.f, -1.f, 1.f));
 
         ambientColor = glm::vec3{0.3f, 0.65f, 0.8f};
@@ -253,6 +262,14 @@ void App::init()
         pointLightRange = 20.f;
         pointLightColor = glm::vec4{0.1f, 0.75f, 0.3f, 1.f};
         pointLightIntensity = 10.f;
+
+        spotLightPosition = {-3.f, 3.5f, 2.f};
+        spotLightRange = 20.f;
+        spotLightColor = glm::vec4{1.f, 1.f, 1.f, 1.f};
+        spotLightIntensity = 2.f;
+        spotLightScaleOffset = calculateSpotLightScaleOffset(0.33, 0.39);
+        spotLightDir = glm::normalize(glm::vec3(1.f, -1.f, 1.f));
+        // spotLightDir = glm::normalize(glm::vec3(0.f, -1.f, 0.f));
     }
 
     frameStartState = gfx::GlobalState{
@@ -557,11 +574,19 @@ void App::uploadSceneData()
         .projection = projection,
         .view = view,
         .cameraPos = glm::vec4{camera.getPosition(), 0.f},
+        // sun
         .sunlightColorAndIntensity = glm::vec4{glm::vec3{sunlightColor}, sunlightIntensity},
         .sunlightDirAndUnused = glm::vec4{sunlightDir, 0.f},
+        // ambient
         .ambientColorAndIntensity = glm::vec4{ambientColor, ambientIntensity},
+        // point
         .pointLightPosAndRange = glm::vec4(pointLightPosition, pointLightRange),
         .pointLightColorAndIntensity = glm::vec4(glm::vec3(pointLightColor), pointLightIntensity),
+        // spot
+        .spotLightPosAndRange = glm::vec4(spotLightPosition, spotLightRange),
+        .spotLightColorAndIntensity = glm::vec4(glm::vec3(spotLightColor), spotLightIntensity),
+        .spotLightScaleOffsetAndUnused = glm::vec4(spotLightScaleOffset, 0.f, 0.f),
+        .spotLightDirAndUnused = glm::vec4(spotLightDir, 0.f),
     };
     sceneDataUboOffset = sceneData.append(d, uboAlignment);
 
@@ -628,6 +653,13 @@ void App::renderDebugObjects()
         debugRenderer.addLine(
             glm::vec3{0.f, 0.f, 0.f}, glm::vec3{0.f, 0.f, 1.f}, glm::vec4{0.f, 0.f, 1.f, 1.f});
     }
+
+    // spot light
+    debugRenderer.addLine(
+        spotLightPosition,
+        spotLightPosition + spotLightDir * 1.f,
+        glm::vec4{1.f, 0.f, 0.f, 1.f},
+        glm::vec4{0.f, 1.f, 0.f, 1.f});
 
     debugRenderer.render(camera);
 

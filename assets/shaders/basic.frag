@@ -20,6 +20,11 @@ layout (binding = 0, std140) uniform GlobalSceneData
 
     vec4 pointLightPositionAndRange;
     vec4 pointLightColorAndIntensity;
+
+    vec4 spotLightPositionAndRange;
+    vec4 spotLightColorAndIntensity;
+    vec4 spotLightScaleOffsetAndUnused;
+    vec4 spotLightDirAndUnused;
 };
 
 layout (binding = 1, std140) uniform PerObjectData
@@ -30,6 +35,7 @@ layout (binding = 1, std140) uniform PerObjectData
 
 #define DIRECTIONAL_LIGHT_TYPE 0
 #define POINT_LIGHT_TYPE 1
+#define SPOT_LIGHT_TYPE 2
 
 struct Light {
     vec3 pos;
@@ -37,7 +43,8 @@ struct Light {
     vec3 dir; // directinal only
     float range; // point light only
     vec3 color;
-    int type; // 0 - directional, 1 - point
+    int type;
+    vec2 scaleOffset; // spot light only
 };
 
 vec3 blinnPhongBRDF(vec3 diffuse, vec3 n, vec3 v, vec3 l, vec3 h) {
@@ -58,16 +65,31 @@ float calculateDistanceAttenuation(float dist, float range)
     return d / (dist*dist);
 }
 
+// See KHR_lights_punctual spec - formulas are taken from it
+float calculateAngularAttenuation(
+        vec3 lightDir, vec3 l,
+        vec2 scaleOffset) {
+    float cd = dot(lightDir, l);
+    float angularAttenuation = clamp(cd * scaleOffset.x + scaleOffset.y, 0.0, 1.0);
+    angularAttenuation *= angularAttenuation;
+    return angularAttenuation;
+}
+
 float calculateAttenuation(vec3 pos, vec3 l, Light light) {
     float dist = length(light.pos - pos);
-    return calculateDistanceAttenuation(dist, light.range);
+    float atten = calculateDistanceAttenuation(dist, light.range);
+    if (light.type == SPOT_LIGHT_TYPE) {
+        // FIXME: why -l here?
+        atten = calculateAngularAttenuation(light.dir, -l, light.scaleOffset);
+    }
+    return atten;
 }
 
 vec3 calculateLight(vec3 fragPos, vec3 n, vec3 v, vec3 diffuse, Light light) {
     vec3 l = -light.dir;
     float atten = 1.0;
 
-    if (light.type == POINT_LIGHT_TYPE) {
+    if (light.type != DIRECTIONAL_LIGHT_TYPE) {
         l = normalize(light.pos - fragPos);
         atten = calculateAttenuation(fragPos, l, light);
     }
@@ -76,7 +98,6 @@ vec3 calculateLight(vec3 fragPos, vec3 n, vec3 v, vec3 diffuse, Light light) {
     float NoL = clamp(dot(n, l), 0.0, 1.0);
     vec3 fr = blinnPhongBRDF(diffuse, n, v, l, h);
     return (fr * light.color) * (light.intensity * atten * NoL);
-
 }
 
 void main()
@@ -105,10 +126,22 @@ void main()
 
     fragColor.rgb += calculateLight(fragPos, n, v, diffuse, pointLight);
 
+    // spot light
+    Light spotLight;
+    spotLight.type = SPOT_LIGHT_TYPE;
+    spotLight.pos = spotLightPositionAndRange.xyz;
+    spotLight.range = spotLightPositionAndRange.w;
+    spotLight.color = spotLightColorAndIntensity.rgb;
+    spotLight.intensity = spotLightColorAndIntensity.w;
+    spotLight.scaleOffset = spotLightScaleOffsetAndUnused.xy;
+    spotLight.dir = spotLightDirAndUnused.xyz;
+
+    fragColor.rgb += calculateLight(fragPos, n, v, diffuse, spotLight);
+
     // ambient
     vec3 ambientColor = ambientColorAndIntensity.rgb;
     float ambientIntensity = ambientColorAndIntensity.a;
-    fragColor.rgb += diffuse * ambientColor * ambientIntensity;
+    // fragColor.rgb += diffuse * ambientColor * ambientIntensity;
 
     fragColor.a = props.x;
 }

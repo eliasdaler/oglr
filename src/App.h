@@ -87,7 +87,7 @@ private:
     bool drawWireframes{false};
 
     float timer{0.f};
-    float timeToSpawnNewObject{2.5f};
+    float timeToSpawnNewObject{200.5f};
     std::vector<std::size_t> randomSpawnMeshes;
     std::vector<std::size_t> randomSpawnTextures;
 
@@ -105,6 +105,11 @@ private:
 
         glm::vec4 pointLightPosAndRange;
         glm::vec4 pointLightColorAndIntensity;
+
+        glm::vec4 spotLightPosAndRange;
+        glm::vec4 spotLightColorAndIntensity;
+        glm::vec4 spotLightScaleOffsetAndUnused;
+        glm::vec4 spotLightDirAndUnused;
     };
     struct PerObjectData {
         glm::mat4 model;
@@ -128,6 +133,13 @@ private:
     float pointLightRange;
     glm::vec4 pointLightColor;
     float pointLightIntensity;
+
+    glm::vec3 spotLightPosition;
+    float spotLightRange;
+    glm::vec4 spotLightColor;
+    float spotLightIntensity;
+    glm::vec2 spotLightScaleOffset;
+    glm::vec3 spotLightDir;
 
     glm::vec3 cameraVelocity;
 
