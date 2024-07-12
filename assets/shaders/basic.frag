@@ -79,8 +79,7 @@ float calculateAttenuation(vec3 pos, vec3 l, Light light) {
     float dist = length(light.pos - pos);
     float atten = calculateDistanceAttenuation(dist, light.range);
     if (light.type == SPOT_LIGHT_TYPE) {
-        // FIXME: why -l here?
-        atten = calculateAngularAttenuation(light.dir, -l, light.scaleOffset);
+        atten = calculateAngularAttenuation(light.dir, l, light.scaleOffset);
     }
     return atten;
 }

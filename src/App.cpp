@@ -268,7 +268,7 @@ void App::init()
         spotLightColor = glm::vec4{1.f, 1.f, 1.f, 1.f};
         spotLightIntensity = 2.f;
         spotLightScaleOffset = calculateSpotLightScaleOffset(0.33, 0.39);
-        spotLightDir = glm::normalize(glm::vec3(1.f, -1.f, 1.f));
+        spotLightDir = glm::normalize(-glm::vec3(1.f, -1.f, 1.f));
         // spotLightDir = glm::normalize(glm::vec3(0.f, -1.f, 0.f));
     }
 
@@ -657,7 +657,7 @@ void App::renderDebugObjects()
     // spot light
     debugRenderer.addLine(
         spotLightPosition,
-        spotLightPosition + spotLightDir * 1.f,
+        spotLightPosition - spotLightDir * 1.f,
         glm::vec4{1.f, 0.f, 0.f, 1.f},
         glm::vec4{0.f, 1.f, 0.f, 1.f});
 
