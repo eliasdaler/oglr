@@ -44,8 +44,6 @@ private:
     void renderSceneObjects(const std::vector<DrawInfo>& drawList);
     void renderWireframes(const std::vector<DrawInfo>& drawList);
 
-    AABB calculateWorldAABB(const ObjectData& object);
-
     void handleFreeCameraControls(float dt);
 
     void generateRandomObject();

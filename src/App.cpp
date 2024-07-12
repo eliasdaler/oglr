@@ -505,7 +505,11 @@ void App::generateDrawList()
             continue;
         }
 
-        object.worldAABB = calculateWorldAABB(object);
+        // recalculate world AABB
+        const auto& meshAABB = meshes[object.meshIdx].aabb;
+        const auto tm = object.transform.asMatrix();
+        object.worldAABB = util::calculateWorldAABB(meshAABB, tm);
+
         if (!util::isInFrustum(frustum, object.worldAABB)) {
             continue;
         }
@@ -662,28 +666,6 @@ void App::spawnCube(const glm::vec3& pos, std::size_t textureIdx, float alpha)
     };
     object.transform.position = pos;
     objects.push_back(object);
-}
-
-AABB App::calculateWorldAABB(const ObjectData& object)
-{
-    auto& aabb = meshes[object.meshIdx].aabb;
-    auto points = std::vector<glm::vec3>{
-        // upper quad
-        {aabb.min.x, aabb.min.y, aabb.min.z},
-        {aabb.max.x, aabb.min.y, aabb.min.z},
-        {aabb.max.x, aabb.min.y, aabb.max.z},
-        {aabb.min.x, aabb.min.y, aabb.max.z},
-        // lower quad
-        {aabb.min.x, aabb.max.y, aabb.min.z},
-        {aabb.max.x, aabb.max.y, aabb.min.z},
-        {aabb.max.x, aabb.max.y, aabb.max.z},
-        {aabb.min.x, aabb.max.y, aabb.max.z},
-    };
-    const auto tm = object.transform.asMatrix();
-    for (auto& point : points) {
-        point = glm::vec3(tm * glm::vec4{point, 1.f});
-    }
-    return util::calculateAABB(points);
 }
 
 Frustum App::getFrustum() const

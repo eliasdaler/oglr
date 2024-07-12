@@ -106,6 +106,7 @@ void DebugRenderer::addFrustumLines(const Camera& camera)
     // far plane
     addQuadLines(corners[4], corners[5], corners[6], corners[7], glm::vec4{0.f, 1.f, 1.f, 1.f});
 
+#if 0
     // draw normals
     {
         const auto normalLength = 0.25f;
@@ -131,6 +132,7 @@ void DebugRenderer::addFrustumLines(const Camera& camera)
         const auto tpc = (corners[1] + corners[5] + corners[6] + corners[2]) / 4.f;
         addLine(tpc, tpc + frustum.topFace.n * normalLength, normalColor, normalColorEnd);
     }
+#endif
 }
 
 void DebugRenderer::render(const Camera& camera)
