@@ -48,7 +48,11 @@ private:
     void handleFreeCameraControls(float dt);
 
     void generateRandomObject();
-    void spawnCube(const glm::vec3& pos, std::size_t textureIdx, float alpha);
+    void spawnObject(
+        const glm::vec3& pos,
+        std::size_t meshIdx,
+        std::size_t textureIdx,
+        float alpha);
 
     Frustum getFrustum() const;
 
@@ -71,16 +75,21 @@ private:
     std::vector<GPUMesh> meshes;
     std::vector<std::uint32_t> textures;
 
+    std::size_t cubeMeshIdx;
+    std::size_t planeMeshIdx;
+
     std::vector<ObjectData> objects;
 
     Camera camera;
     Camera testCamera;
-    bool useTestCameraForCulling{true};
-    bool drawAABBs{true};
-    bool drawWireframes{true};
+    bool useTestCameraForCulling{false};
+    bool drawAABBs{false};
+    bool drawWireframes{false};
 
     float timer{0.f};
     float timeToSpawnNewObject{0.25f};
+    std::vector<std::size_t> randomSpawnMeshes;
+    std::vector<std::size_t> randomSpawnTextures;
 
     struct GlobalSceneData {
         glm::mat4 projection;

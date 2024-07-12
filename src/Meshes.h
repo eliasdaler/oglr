@@ -10,6 +10,37 @@
 
 namespace util
 {
+
+inline CPUMesh getPlaneMesh(float planeScale, float uvScale)
+{
+    std::vector<CPUVertex> vertices{
+        {.position = glm::vec3{-planeScale, 0, planeScale},
+         .uv = {0, uvScale},
+         .normal = {0, 1, -0}},
+        {.position = glm::vec3{planeScale, 0, planeScale},
+         .uv = {uvScale, uvScale},
+         .normal = {0, 1, -0}},
+        {.position = glm::vec3{-planeScale, 0, -planeScale}, .uv = {0, 0}, .normal = {0, 1, -0}},
+        {.position = glm::vec3{planeScale, 0, -planeScale},
+         .uv = {uvScale, 0},
+         .normal = {0, 1, -0}},
+    };
+
+    std::vector<std::uint32_t> indices = {
+        0,
+        1,
+        3,
+        0,
+        3,
+        2,
+    };
+
+    return CPUMesh{
+        .vertices = std::move(vertices),
+        .indices = std::move(indices),
+    };
+}
+
 inline CPUMesh getCubeMesh()
 {
     std::vector<CPUVertex> vertices{

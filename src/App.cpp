@@ -30,13 +30,22 @@ constexpr auto PER_OBJECT_DATA_BINDING = 1;
 constexpr auto VERTEX_DATA_BINDING = 2;
 
 template<typename T, typename RNGType>
-std::size_t chooseRandomElement(const std::vector<T>& v, RNGType& rng)
+std::size_t chooseRandomElementIndex(const std::vector<T>& v, RNGType& rng)
 {
     if (v.empty()) {
         return 0;
     }
     std::uniform_int_distribution<std::size_t> dist{0, v.size() - 1};
     return dist(rng);
+}
+
+template<typename T, typename RNGType>
+T chooseRandomElement(const std::vector<T>& v, RNGType& rng)
+{
+    if (v.empty()) {
+        return T{};
+    }
+    return v.at(chooseRandomElementIndex(v, rng));
 }
 
 // getStickState({negX, posX}, {negY, posY})
@@ -168,6 +177,7 @@ void App::init()
     const auto texturesToLoad = {
         "assets/images/texture1.png",
         "assets/images/texture2.png",
+        "assets/images/texture3.png",
     };
     for (const auto& texturePath : texturesToLoad) {
         auto texture = gfx::loadTextureFromFile(texturePath);
@@ -180,6 +190,13 @@ void App::init()
     { // load meshes
         meshes.push_back(gfx::uploadMeshToGPU(util::getCubeMesh()));
         meshes.push_back(gfx::uploadMeshToGPU(util::getStarMesh()));
+        meshes.push_back(gfx::uploadMeshToGPU(util::getPlaneMesh(100, 50)));
+
+        // TODO: something better?
+        randomSpawnMeshes = {0, 1};
+        randomSpawnTextures = {0, 1};
+        cubeMeshIdx = 0;
+        planeMeshIdx = 2;
     }
 
     // initial state
@@ -199,7 +216,7 @@ void App::init()
         const auto zNear = 0.1f;
         const auto zFar = 1000.f;
         camera.init(fovX, zNear, zFar, (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT);
-        camera.setPosition({0.f, 0.5f, -10.f});
+        camera.setPosition({0.f, 2.5f, -10.f});
     }
 
     { // init test camera
@@ -218,14 +235,17 @@ void App::init()
         generateRandomObject();
     }
 
-    spawnCube({0.f, 0.f, 0.f}, 0, 0.5f);
-    spawnCube({0.f, 0.f, 2.5f}, 1, 0.7f);
-    spawnCube({0.f, 0.f, 5.0f}, 0, 1.f);
-    spawnCube({0.f, 0.f, 7.5f}, 0, 0.2f);
+    // ground plane
+    spawnObject({}, planeMeshIdx, 2, 1.f);
+    // some cubes
+    spawnObject({0.f, 1.f, 0.f}, cubeMeshIdx, 0, 1.0f);
+    spawnObject({0.f, 1.f, 2.5f}, cubeMeshIdx, 1, 0.7f);
+    spawnObject({0.f, 1.f, 5.0f}, cubeMeshIdx, 0, 1.f);
+    spawnObject({0.f, 1.f, 7.5f}, cubeMeshIdx, 0, 0.7f);
 
     // init lights
     sunlightColor = glm::vec3{0.65, 0.4, 0.3};
-    sunlightIntensity = 1.75f;
+    sunlightIntensity = 2.5f;
     sunlightDir = glm::normalize(glm::vec3(1.0, -1.0, 1.0));
 
     ambientColor = glm::vec3{0.3, 0.65, 0.8};
@@ -361,7 +381,7 @@ void App::update(float dt)
     // rotate objects
     static const auto rotationSpeed = glm::radians(45.f);
     for (auto& object : objects) {
-        object.transform.heading *= glm::angleAxis(rotationSpeed * dt, glm::vec3{1.f, 1.f, 0.f});
+        // object.transform.heading *= glm::angleAxis(rotationSpeed * dt, glm::vec3{1.f, 1.f, 0.f});
     }
 
     ImGui::Begin("Debug");
@@ -570,8 +590,8 @@ void App::renderSceneObjects(const std::vector<DrawInfo>& drawList)
             drawInfo.uboOffset,
             sizeof(PerObjectData));
 
-        // glBindTextureUnit(0, textures[object.textureIdx]);
-        glBindTextureUnit(0, textures[object.alpha != 1.f ? 0 : 1]);
+        glBindTextureUnit(0, textures[object.textureIdx]);
+        // glBindTextureUnit(0, textures[object.alpha != 1.f ? 0 : 1]);
         glDrawElements(GL_TRIANGLES, mesh.numIndices, GL_UNSIGNED_INT, 0);
     }
 }
@@ -585,7 +605,7 @@ void App::renderDebugObjects()
         }
     }
 
-    debugRenderer.addFrustumLines(testCamera);
+    // debugRenderer.addFrustumLines(testCamera);
 
     { // world origin
         debugRenderer.addLine(
@@ -636,14 +656,15 @@ void App::renderWireframes(const std::vector<DrawInfo>& drawList)
 void App::generateRandomObject()
 {
     ObjectData object{
-        .meshIdx = chooseRandomElement(meshes, rng),
-        .textureIdx = chooseRandomElement(textures, rng),
+        .meshIdx = chooseRandomElement(randomSpawnMeshes, rng),
+        .textureIdx = chooseRandomElement(randomSpawnTextures, rng),
     };
 
     std::uniform_real_distribution<float> posDist{-10.f, 10.f};
+    std::uniform_real_distribution<float> posDistY{0.1f, 10.f};
     // random position
     object.transform.position.x = posDist(rng);
-    object.transform.position.y = posDist(rng);
+    object.transform.position.y = posDistY(rng);
     object.transform.position.z = posDist(rng);
 
     // add some random rotation
@@ -663,14 +684,19 @@ void App::generateRandomObject()
     objects.push_back(object);
 }
 
-void App::spawnCube(const glm::vec3& pos, std::size_t textureIdx, float alpha)
+void App::spawnObject(
+    const glm::vec3& pos,
+    std::size_t meshIdx,
+    std::size_t textureIdx,
+    float alpha)
 {
+    Transform transform{.position = pos};
     ObjectData object{
-        .meshIdx = 0,
+        .transform = transform,
+        .meshIdx = meshIdx,
         .textureIdx = textureIdx,
         .alpha = alpha,
     };
-    object.transform.position = pos;
     objects.push_back(object);
 }
 

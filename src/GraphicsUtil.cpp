@@ -166,13 +166,17 @@ GLuint loadTextureFromFile(const std::filesystem::path& path)
     GLuint texture;
     glCreateTextures(GL_TEXTURE_2D, 1, &texture);
 
-    glTextureParameteri(texture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTextureParameteri(texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(texture, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTextureParameteri(texture, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
     // glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     // glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    GLfloat maxAniso;
+    glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY, &maxAniso);
+    glTextureParameterf(texture, GL_TEXTURE_MAX_ANISOTROPY, std::min(8.f, maxAniso));
 
     const auto maxExtent = std::max(imageData.width, imageData.height);
     const auto mipLevels = (std::uint32_t)std::floor(std::log2(maxExtent)) + 1;
