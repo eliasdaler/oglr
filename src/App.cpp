@@ -229,12 +229,6 @@ void App::init()
         testCamera.lookAt(glm::vec3{0.f, 0.f, 0.f});
     }
 
-    auto numObjectsToSpawn = dist(rng);
-    numObjectsToSpawn = 0;
-    for (int i = 0; i < numObjectsToSpawn; ++i) {
-        generateRandomObject();
-    }
-
     // ground plane
     spawnObject({}, planeMeshIdx, 2, 1.f);
     // some cubes
@@ -243,13 +237,23 @@ void App::init()
     spawnObject({0.f, 1.f, 5.0f}, cubeMeshIdx, 0, 1.f);
     spawnObject({0.f, 1.f, 7.5f}, cubeMeshIdx, 0, 0.7f);
 
-    // init lights
-    sunlightColor = glm::vec3{0.65, 0.4, 0.3};
-    sunlightIntensity = 2.5f;
-    sunlightDir = glm::normalize(glm::vec3(1.0, -1.0, 1.0));
+    { // init lights
+        sunlightColor = glm::vec4{0.65f, 0.4f, 0.3f, 1.f};
+        sunlightIntensity = 1.5f;
+        sunlightDir = glm::normalize(glm::vec3(1.f, -1.f, 1.f));
 
-    ambientColor = glm::vec3{0.3, 0.65, 0.8};
-    ambientIntensity = 0.2f;
+        ambientColor = glm::vec3{0.3f, 0.65f, 0.8f};
+        ambientIntensity = 0.2f;
+
+        pointLightRotateOrigin = {0.f, 2.5f, 1.25f};
+        pointLightRotateAngle = 0.f;
+        pointLightRotateRadius = 5.f;
+
+        pointLightPosition = {0.f, 2.5f, 1.25f};
+        pointLightRange = 20.f;
+        pointLightColor = glm::vec4{0.1f, 0.75f, 0.3f, 1.f};
+        pointLightIntensity = 10.f;
+    }
 
     frameStartState = gfx::GlobalState{
         .depthTestEnabled = false,
@@ -383,6 +387,13 @@ void App::update(float dt)
     for (auto& object : objects) {
         // object.transform.heading *= glm::angleAxis(rotationSpeed * dt, glm::vec3{1.f, 1.f, 0.f});
     }
+
+    // animate point light
+    pointLightRotateAngle += 1.5f * dt;
+    pointLightPosition.x =
+        pointLightRotateOrigin.x + std::cos(pointLightRotateAngle) * pointLightRotateRadius;
+    pointLightPosition.z =
+        pointLightRotateOrigin.z + std::sin(pointLightRotateAngle) * pointLightRotateRadius;
 
     ImGui::Begin("Debug");
     ImGui::Text("Total objects: %d", (int)objects.size());
@@ -546,9 +557,11 @@ void App::uploadSceneData()
         .projection = projection,
         .view = view,
         .cameraPos = glm::vec4{camera.getPosition(), 0.f},
-        .sunlightColorAndIntensity = glm::vec4{sunlightColor, sunlightIntensity},
+        .sunlightColorAndIntensity = glm::vec4{glm::vec3{sunlightColor}, sunlightIntensity},
         .sunlightDirAndUnused = glm::vec4{sunlightDir, 0.f},
         .ambientColorAndIntensity = glm::vec4{ambientColor, ambientIntensity},
+        .pointLightPosAndRange = glm::vec4(pointLightPosition, pointLightRange),
+        .pointLightColorAndIntensity = glm::vec4(glm::vec3(pointLightColor), pointLightIntensity),
     };
     sceneDataUboOffset = sceneData.append(d, uboAlignment);
 

@@ -16,6 +16,9 @@ layout (binding = 0, std140) uniform GlobalSceneData
     vec4 sunlightColorAndIntensity;
     vec4 sunlightDirAndUnused;
     vec4 ambientColorAndIntensity;
+
+    vec4 pointLightPositionAndRange;
+    vec4 pointLightColorAndIntensity;
 };
 
 layout (binding = 1, std140) uniform PerObjectData

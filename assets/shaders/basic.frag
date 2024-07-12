@@ -17,12 +17,27 @@ layout (binding = 0, std140) uniform GlobalSceneData
     vec4 sunlightColorAndIntensity;
     vec4 sunlightDirAndUnused;
     vec4 ambientColorAndIntensity;
+
+    vec4 pointLightPositionAndRange;
+    vec4 pointLightColorAndIntensity;
 };
 
 layout (binding = 1, std140) uniform PerObjectData
 {
     mat4 model;
     vec4 props; // x - alpha, yzw - unused
+};
+
+#define DIRECTIONAL_LIGHT_TYPE 0
+#define POINT_LIGHT_TYPE 1
+
+struct Light {
+    vec3 pos;
+    float intensity;
+    vec3 dir; // directinal only
+    float range; // point light only
+    vec3 color;
+    int type; // 0 - directional, 1 - point
 };
 
 vec3 blinnPhongBRDF(vec3 diffuse, vec3 n, vec3 v, vec3 l, vec3 h) {
@@ -37,24 +52,58 @@ vec3 blinnPhongBRDF(vec3 diffuse, vec3 n, vec3 v, vec3 l, vec3 h) {
     return Fd + Fr;
 }
 
+float calculateDistanceAttenuation(float dist, float range)
+{
+    float d = clamp(1.0 - pow((dist/range), 4.0), 0.0, 1.0);
+    return d / (dist*dist);
+}
+
+float calculateAttenuation(vec3 pos, vec3 l, Light light) {
+    float dist = length(light.pos - pos);
+    return calculateDistanceAttenuation(dist, light.range);
+}
+
+vec3 calculateLight(vec3 fragPos, vec3 n, vec3 v, vec3 diffuse, Light light) {
+    vec3 l = -light.dir;
+    float atten = 1.0;
+
+    if (light.type == POINT_LIGHT_TYPE) {
+        l = normalize(light.pos - fragPos);
+        atten = calculateAttenuation(fragPos, l, light);
+    }
+
+    vec3 h = normalize(v + l);
+    float NoL = clamp(dot(n, l), 0.0, 1.0);
+    vec3 fr = blinnPhongBRDF(diffuse, n, v, l, h);
+    return (fr * light.color) * (light.intensity * atten * NoL);
+
+}
+
 void main()
 {
-    vec3 lightColor = sunlightColorAndIntensity.rgb;
-    float lightIntensity = sunlightColorAndIntensity.a;
-    vec3 lightDir = sunlightDirAndUnused.xyz;
-
     vec3 fragPos = inPos;
     vec3 n = normalize(inNormal);
-
-    vec3 l = -lightDir;
     vec3 v = normalize(cameraPos.xyz - fragPos);
-    vec3 h = normalize(v + l);
-
-    float NoL = clamp(dot(n, l), 0.0, 1.0);
-
     vec3 diffuse = texture(tex, inUV).rgb;
-    vec3 fr = blinnPhongBRDF(diffuse, n, v, l, h);
-    fragColor.rgb = (fr * lightColor) * (lightIntensity * NoL);
+
+    // sun light
+    Light sunLight;
+    sunLight.type = DIRECTIONAL_LIGHT_TYPE;
+    sunLight.color = sunlightColorAndIntensity.rgb;
+    sunLight.dir = sunlightDirAndUnused.xyz;
+    sunLight.intensity = sunlightColorAndIntensity.w;
+
+    fragColor.rgb = calculateLight(fragPos, n, v, diffuse, sunLight);
+
+    // point light
+    Light pointLight;
+    pointLight.type = POINT_LIGHT_TYPE;
+    pointLight.pos = pointLightPositionAndRange.xyz;
+    pointLight.range = pointLightPositionAndRange.w;
+    pointLight.color = pointLightColorAndIntensity.rgb;
+    pointLight.intensity = pointLightColorAndIntensity.w;
+
+    fragColor.rgb += calculateLight(fragPos, n, v, diffuse, pointLight);
 
     // ambient
     vec3 ambientColor = ambientColorAndIntensity.rgb;

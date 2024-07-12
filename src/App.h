@@ -87,9 +87,13 @@ private:
     bool drawWireframes{false};
 
     float timer{0.f};
-    float timeToSpawnNewObject{0.25f};
+    float timeToSpawnNewObject{2.5f};
     std::vector<std::size_t> randomSpawnMeshes;
     std::vector<std::size_t> randomSpawnTextures;
+
+    float pointLightRotateAngle{0.f};
+    float pointLightRotateRadius{1.f};
+    glm::vec3 pointLightRotateOrigin{};
 
     struct GlobalSceneData {
         glm::mat4 projection;
@@ -98,6 +102,9 @@ private:
         glm::vec4 sunlightColorAndIntensity;
         glm::vec4 sunlightDirAndUnused;
         glm::vec4 ambientColorAndIntensity;
+
+        glm::vec4 pointLightPosAndRange;
+        glm::vec4 pointLightColorAndIntensity;
     };
     struct PerObjectData {
         glm::mat4 model;
@@ -110,12 +117,17 @@ private:
     gfx::BumpAllocator sceneData;
     std::size_t sceneDataUboOffset;
 
-    glm::vec3 sunlightColor;
+    glm::vec4 sunlightColor;
     float sunlightIntensity;
     glm::vec3 sunlightDir;
 
     glm::vec3 ambientColor;
     float ambientIntensity;
+
+    glm::vec3 pointLightPosition;
+    float pointLightRange;
+    glm::vec4 pointLightColor;
+    float pointLightIntensity;
 
     glm::vec3 cameraVelocity;
 
