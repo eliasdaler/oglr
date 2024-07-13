@@ -122,7 +122,9 @@ private:
         glm::mat4 projection;
         glm::mat4 view;
         glm::vec4 cameraPos;
-        glm::vec4 ambientColorAndIntensity;
+
+        glm::vec3 ambientColor;
+        float ambientIntensity;
 
         GPULightData sunLight;
         GPULightData pointLight;

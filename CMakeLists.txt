@@ -15,6 +15,7 @@ endif()
 add_subdirectory(third_party)
 
 add_executable(app
+  src/StbIncludeImpl.cpp
   src/GLDebugCallback.cpp
   src/GraphicsUtil.cpp
   src/FrustumCulling.cpp
@@ -49,7 +50,7 @@ endif()
 target_link_libraries(app PUBLIC
   glad::glad
   glm::glm
-  stb::image
+  stb::stb
   imgui::imgui
 )
 

@@ -10,6 +10,8 @@
 #include <fstream>
 #include <iostream>
 
+#include <stb_include.h>
+
 namespace
 {
 std::string readFileToString(const std::filesystem::path& path)
@@ -75,10 +77,13 @@ GLuint compileShader(const std::filesystem::path& path, GLenum shaderType)
 {
     GLint shader = glCreateShader(shaderType);
 
-    const auto sourceStr = readFileToString(path);
-    const char* sourceCStr = sourceStr.c_str();
-    glShaderSource(shader, 1, &sourceCStr, NULL);
+    const auto parentPathStr = path.parent_path().string();
+    char error[256]{};
+    const auto processedSource = std::unique_ptr<char, decltype([](char* p) { free(p); })>(
+        stb_include_file(path.string().c_str(), nullptr, parentPathStr.c_str(), error));
+    const auto sourceCStr = processedSource.get();
 
+    glShaderSource(shader, 1, &sourceCStr, NULL);
     glCompileShader(shader);
 
     // check for shader compile errors

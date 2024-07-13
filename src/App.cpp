@@ -597,7 +597,8 @@ void App::uploadSceneData()
         .view = view,
         .cameraPos = glm::vec4{camera.getPosition(), 0.f},
         // ambient
-        .ambientColorAndIntensity = glm::vec4{ambientColor, ambientIntensity},
+        .ambientColor = glm::vec3{ambientColor},
+        .ambientIntensity = ambientIntensity,
         // lights
         .sunLight = toGPULightData({}, sunLightDir, sunLight),
         .pointLight = toGPULightData(pointLightPosition, {}, pointLight),
