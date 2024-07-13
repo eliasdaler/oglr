@@ -285,7 +285,7 @@ void App::init()
         spotLight = Light{
             .type = LIGHT_TYPE_SPOT,
             .color = glm::vec4{1.f, 1.f, 1.f, 1.f},
-            .intensity = 0.1f,
+            .intensity = 4.f,
             .range = 20.f,
             .scaleOffset = calculateSpotLightScaleOffset(0.33, 0.39),
         };
