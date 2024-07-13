@@ -205,6 +205,7 @@ void App::init()
         "assets/images/texture1.png",
         "assets/images/texture2.png",
         "assets/images/texture3.png",
+        "assets/images/texture5.png",
     };
     for (const auto& texturePath : texturesToLoad) {
         auto texture = gfx::loadTextureFromFile(texturePath);
@@ -278,13 +279,26 @@ void App::init()
         spotLightPosition = {-3.f, 3.5f, 2.f};
         spotLightDir = glm::normalize(-glm::vec3(1.f, -1.f, 1.f));
 
+        // spotLightPosition = {-3.f, 5.0f, 2.f};
+        // spotLightDir = glm::normalize(-glm::vec3(0.f, -1.f, 0.f));
+
         spotLight = Light{
             .type = LIGHT_TYPE_SPOT,
             .color = glm::vec4{1.f, 1.f, 1.f, 1.f},
-            .intensity = 2.f,
+            .intensity = 0.1f,
             .range = 20.f,
             .scaleOffset = calculateSpotLightScaleOffset(0.33, 0.39),
         };
+
+        {
+            const auto fovX = glm::radians(60.f);
+            const auto zNear = 0.1f;
+            const auto zFar = spotLight.range;
+            spotLightCamera.init(fovX, zNear, zFar, 1.f);
+            spotLightCamera.setPosition({0.f, 2.5f, -10.f});
+            spotLightCamera.setPosition(spotLightPosition);
+            spotLightCamera.setHeading(glm::quatLookAt(spotLightDir, math::GLOBAL_UP_DIR));
+        }
     }
 
     frameStartState = gfx::GlobalState{
@@ -529,6 +543,12 @@ void App::render()
         // object texture will be read from TU0
         glProgramUniform1i(worldShader, FRAG_TEXTURE_UNIFORM_LOC, 0);
 
+        // gobo texture will be read from TU1
+        constexpr auto GOBO_TEXTURE_UNIFORM_LOC = 2;
+        constexpr auto GOBO_TEX_ID = 3;
+        glProgramUniform1i(worldShader, GOBO_TEXTURE_UNIFORM_LOC, 1);
+        glBindTextureUnit(1, textures[3]);
+
         glBindBufferRange(
             GL_UNIFORM_BUFFER,
             GLOBAL_SCENE_DATA_BINDING,
@@ -650,6 +670,7 @@ void App::uploadSceneData()
         .sunLight = toGPULightData({}, sunLightDir, sunLight),
         .pointLight = toGPULightData(pointLightPosition, {}, pointLight),
         .spotLight = toGPULightData(spotLightPosition, spotLightDir, spotLight),
+        .spotLightSpaceTM = spotLightCamera.getViewProj(),
     };
     sceneDataUboOffset = sceneData.append(d, uboAlignment);
 
@@ -705,6 +726,7 @@ void App::renderDebugObjects()
         }
     }
 
+    // debugRenderer.addFrustumLines(spotLightCamera);
     // debugRenderer.addFrustumLines(testCamera);
 
     { // world origin

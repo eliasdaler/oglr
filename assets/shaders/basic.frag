@@ -10,6 +10,7 @@ layout (location = 2) in vec3 inNormal;
 layout (location = 0) out vec4 fragColor;
 
 layout (location = 1) uniform sampler2D tex;
+layout (location = 2) uniform sampler2D goboTex;
 
 void main()
 {
@@ -24,6 +25,20 @@ void main()
 
     // ambient
     fragColor.rgb += diffuse * ambientColor * ambientIntensity;
+
+    // gobo
+    vec4 fragPosLightSpace = spotLightSpaceTM * vec4(fragPos, 1.f);
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+    projCoords = projCoords * 0.5 + 0.5; // from [-1;1] to [0;1]
+
+    vec3 l = normalize(spotLight.position - fragPos);
+    float nDotL = dot(n, l);
+    if (projCoords.x > 0 && projCoords.x < 1 &&
+        projCoords.y > 0 && projCoords.y < 1 &&
+        projCoords.z > 0 && projCoords.z < 1 &&
+        nDotL >= 0) {
+        fragColor.rgb += texture(goboTex, projCoords.xy).rgb;
+    }
 
     fragColor.a = props.x;
 }

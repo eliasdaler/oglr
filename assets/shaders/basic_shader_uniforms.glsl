@@ -13,6 +13,8 @@ layout (binding = 0, std140) uniform GlobalSceneData
     Light sunLight;
     Light pointLight;
     Light spotLight;
+
+    mat4 spotLightSpaceTM;
 };
 
 layout (binding = 1, std140) uniform PerObjectData

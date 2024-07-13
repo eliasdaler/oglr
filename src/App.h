@@ -111,7 +111,7 @@ private:
     bool drawWireframes{false};
 
     float timer{0.f};
-    float timeToSpawnNewObject{200.5f};
+    float timeToSpawnNewObject{1000.5f};
     std::vector<std::size_t> randomSpawnMeshes;
     std::vector<std::size_t> randomSpawnTextures;
 
@@ -130,6 +130,8 @@ private:
         GPULightData sunLight;
         GPULightData pointLight;
         GPULightData spotLight;
+
+        glm::mat4 spotLightSpaceTM;
     };
 
     struct PerObjectData {
@@ -155,6 +157,8 @@ private:
     glm::vec3 spotLightPosition;
     glm::vec3 spotLightDir;
     Light spotLight;
+
+    Camera spotLightCamera;
 
     std::vector<DrawInfo> drawList;
     std::vector<DrawInfo> opaqueDrawList;
