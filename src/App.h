@@ -111,7 +111,7 @@ private:
     bool drawWireframes{false};
 
     float timer{0.f};
-    float timeToSpawnNewObject{1000.5f};
+    float timeToSpawnNewObject{1000.25f};
     std::vector<std::size_t> randomSpawnMeshes;
     std::vector<std::size_t> randomSpawnTextures;
 
@@ -145,7 +145,8 @@ private:
     int uboAlignment{4};
 
     gfx::BumpAllocator sceneData;
-    std::size_t cameraDataUboOffset;
+    std::size_t MAX_CAMERAS_IN_UBO = 8;
+    std::vector<std::size_t> cameraDataUboOffsets; // 0 - main camera, 1 etc. - other cameras
     std::size_t lightDataUboOffset;
 
     glm::vec3 ambientColor;

@@ -11,6 +11,20 @@ layout (location = 0) out vec4 fragColor;
 
 layout (location = 1) uniform sampler2D tex;
 layout (location = 2) uniform sampler2D goboTex;
+layout (location = 3) uniform sampler2D shadowMapTex;
+
+float calculateOcclusion(vec3 fragPos, mat4 lightSpaceTM) {
+    vec4 fragPosLightSpace = lightSpaceTM * vec4(fragPos, 1.f);
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+    projCoords = projCoords * 0.5 + 0.5; // from [-1;1] to [0;1]
+    if (projCoords.z >= 1) {
+        return 1.0;
+    }
+
+    float currentDepth = projCoords.z;
+    float closestDepth = texture(shadowMapTex, projCoords.xy).r;
+    return currentDepth > closestDepth ? 0.0 : 1.0;
+}
 
 void main()
 {
@@ -19,15 +33,18 @@ void main()
     vec3 v = normalize(cameraPos.xyz - fragPos);
     vec3 diffuse = texture(tex, inUV).rgb;
 
-    fragColor.rgb = calculateLight(fragPos, n, v, diffuse, sunLight);
-    fragColor.rgb += calculateLight(fragPos, n, v, diffuse, pointLight);
-    // fragColor.rgb += calculateLight(fragPos, n, v, diffuse, spotLight);
+    fragColor.rgb = calculateLight(fragPos, n, v, diffuse, sunLight, 1.0);
+    fragColor.rgb += calculateLight(fragPos, n, v, diffuse, pointLight, 1.0);
+
+    float occlusion = calculateOcclusion(fragPos, spotLightSpaceTM);
+    fragColor.rgb += calculateLight(fragPos, n, v, diffuse, spotLight, occlusion);
+    // fragColor.rgb += calculateLight(fragPos, n, v, diffuse, spotLight, 1.0);
 
     // ambient
     fragColor.rgb += diffuse * ambientColor * ambientIntensity;
 
     // gobo
-    vec4 fragPosLightSpace = spotLightSpaceTM * vec4(fragPos, 1.f);
+    /* vec4 fragPosLightSpace = spotLightSpaceTM * vec4(fragPos, 1.f);
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     projCoords = projCoords * 0.5 + 0.5; // from [-1;1] to [0;1]
     if (projCoords.x > 0 && projCoords.x < 1 &&
@@ -36,7 +53,7 @@ void main()
         vec3 goboLight = calculateLight(fragPos, n, v, diffuse, spotLight);
         goboLight *= texture(goboTex, projCoords.xy).rgb;
         fragColor.rgb += goboLight;
-    }
+    } */
 
     fragColor.a = props.x;
 }

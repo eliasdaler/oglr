@@ -40,7 +40,7 @@ float calculateAttenuation(vec3 pos, vec3 l, Light light) {
     return atten;
 }
 
-vec3 calculateLight(vec3 fragPos, vec3 n, vec3 v, vec3 diffuse, Light light) {
+vec3 calculateLight(vec3 fragPos, vec3 n, vec3 v, vec3 diffuse, Light light, float occlusion) {
     vec3 l = -light.dir;
     float atten = 1.0;
 
@@ -52,7 +52,7 @@ vec3 calculateLight(vec3 fragPos, vec3 n, vec3 v, vec3 diffuse, Light light) {
     vec3 h = normalize(v + l);
     float NoL = clamp(dot(n, l), 0.0, 1.0);
     vec3 fr = blinnPhongBRDF(diffuse, n, v, l, h);
-    return (fr * light.color) * (light.intensity * atten * NoL);
+    return (fr * light.color) * (light.intensity * atten * NoL * occlusion);
 }
 
 #endif // LIGHTING_GLSL

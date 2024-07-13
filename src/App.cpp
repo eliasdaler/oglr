@@ -193,9 +193,11 @@ void App::init()
         const auto lightDataSize = gfx::getAlignedSize(sizeof(LightData), uboAlignment);
         const auto perObjectDataElementSize =
             gfx::getAlignedSize(sizeof(PerObjectData), uboAlignment);
-        const auto bufSize = cameraDataSize + lightDataSize + perObjectDataElementSize * 100;
+        const auto bufSize =
+            cameraDataSize * MAX_CAMERAS_IN_UBO + lightDataSize + perObjectDataElementSize * 100;
         sceneDataBuffer = gfx::allocateBuffer(bufSize, nullptr, "sceneData");
         sceneData.resize(bufSize);
+        cameraDataUboOffsets.resize(MAX_CAMERAS_IN_UBO);
     }
 
     // we still need an empty VAO even for vertex pulling
@@ -252,8 +254,11 @@ void App::init()
     // some cubes
     spawnObject({0.f, 1.f, 0.f}, cubeMeshIdx, 0, 1.0f);
     spawnObject({0.f, 1.f, 2.5f}, cubeMeshIdx, 1, 1.f);
-    spawnObject({0.f, 1.f, 5.0f}, cubeMeshIdx, 0, 1.f);
+    spawnObject({0.f, 1.f, 5.f}, cubeMeshIdx, 0, 1.0f);
     spawnObject({0.f, 1.f, 7.5f}, cubeMeshIdx, 1, 1.f);
+    // star
+    // spawnObject({0.f, 0.1f, 5.0f}, 1, 0, 1.f);
+    // spawnObject({0.f, 0.3f, 7.5f}, 1, 1, 1.f);
 
     { // init lights
         ambientColor = glm::vec3{0.3f, 0.65f, 0.8f};
@@ -279,6 +284,7 @@ void App::init()
         };
 
         spotLightPosition = {-3.f, 3.5f, 2.f};
+        spotLightPosition = {-3.f, 4.5f, 2.f};
         spotLightDir = glm::normalize(glm::vec3(1.f, -1.f, 1.f));
 
         // spotLightPosition = {-3.f, 5.0f, 2.f};
@@ -374,6 +380,8 @@ void App::init()
         glCreateTextures(GL_TEXTURE_2D, 1, &shadowMapDepthTexture);
         glTextureStorage2D(
             shadowMapDepthTexture, 1, GL_DEPTH_COMPONENT32F, shadowMapSize, shadowMapSize);
+        glTextureParameteri(
+            shadowMapDepthTexture, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
 
         // Attach buffers
         glNamedFramebufferTexture(shadowMapFBO, GL_DEPTH_ATTACHMENT, shadowMapDepthTexture, 0);
@@ -552,6 +560,32 @@ void App::render()
     glBindVertexArray(vao);
 
     {
+        GL_DEBUG_GROUP("Shadow pass");
+        gfx::setGlobalState(opaqueDrawState);
+        glBindFramebuffer(GL_FRAMEBUFFER, shadowMapFBO);
+        // clear
+        GLfloat depthValue{1.f};
+        glClearNamedFramebufferfv(shadowMapFBO, GL_DEPTH, 0, &depthValue);
+
+        glBindBufferRange(
+            GL_UNIFORM_BUFFER,
+            CAMERA_DATA_BINDING,
+            sceneDataBuffer.buffer,
+            cameraDataUboOffsets[1],
+            sizeof(CameraData));
+        glBindBufferRange(
+            GL_UNIFORM_BUFFER,
+            LIGHT_DATA_BINDING,
+            sceneDataBuffer.buffer,
+            lightDataUboOffset,
+            sizeof(LightData));
+
+        glUseProgram(worldShader);
+
+        renderSceneObjects(opaqueDrawList);
+    }
+
+    {
         gfx::setGlobalState(frameStartState);
         glBindFramebuffer(GL_FRAMEBUFFER, mainDrawFBO);
         // clear fbo buffers
@@ -569,11 +603,16 @@ void App::render()
         glProgramUniform1i(worldShader, GOBO_TEXTURE_UNIFORM_LOC, 1);
         glBindTextureUnit(1, textures[3]);
 
+        // shadow map
+        constexpr auto SHADOW_MAP_TEXTURE_UNIFORM_LOC = 3;
+        glProgramUniform1i(worldShader, SHADOW_MAP_TEXTURE_UNIFORM_LOC, 2);
+        glBindTextureUnit(2, shadowMapDepthTexture);
+
         glBindBufferRange(
             GL_UNIFORM_BUFFER,
             CAMERA_DATA_BINDING,
             sceneDataBuffer.buffer,
-            cameraDataUboOffset,
+            cameraDataUboOffsets[0],
             sizeof(CameraData));
         glBindBufferRange(
             GL_UNIFORM_BUFFER,
@@ -595,17 +634,6 @@ void App::render()
             gfx::setGlobalState(transparentDrawState);
             renderSceneObjects(transparentDrawList);
         }
-    }
-
-    {
-        GL_DEBUG_GROUP("Shadow pass");
-        gfx::setGlobalState(opaqueDrawState);
-        glBindFramebuffer(GL_FRAMEBUFFER, shadowMapFBO);
-        // clear
-        GLfloat depthValue{1.f};
-        glClearNamedFramebufferfv(shadowMapFBO, GL_DEPTH, 0, &depthValue);
-
-        renderSceneObjects(opaqueDrawList);
     }
 
     // restore default FBO
@@ -693,12 +721,23 @@ void App::uploadSceneData()
     const auto projection = camera.getProjection();
     const auto view = camera.getView();
 
-    const auto cd = CameraData{
+    cameraDataUboOffsets.clear();
+
+    // main cam
+    auto cd = CameraData{
         .projection = projection,
         .view = view,
         .cameraPos = glm::vec4{camera.getPosition(), 0.f},
     };
-    cameraDataUboOffset = sceneData.append(cd, uboAlignment);
+    cameraDataUboOffsets.push_back(sceneData.append(cd, uboAlignment));
+
+    // spot light cam
+    cd = CameraData{
+        .projection = spotLightCamera.getProjection(),
+        .view = spotLightCamera.getView(),
+        .cameraPos = glm::vec4{spotLightCamera.getPosition(), 0.f},
+    };
+    cameraDataUboOffsets.push_back(sceneData.append(cd, uboAlignment));
 
     const auto ld = LightData{
         // ambient
