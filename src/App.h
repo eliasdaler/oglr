@@ -26,6 +26,29 @@ struct DrawInfo {
     float distToCamera;
 };
 
+inline constexpr int LIGHT_TYPE_DIRECTIONAL = 0;
+inline constexpr int LIGHT_TYPE_POINT = 1;
+inline constexpr int LIGHT_TYPE_SPOT = 2;
+
+struct Light {
+    int type{0};
+    glm::vec4 color;
+    float intensity{0.f};
+    float range{0.f}; // point light only
+    glm::vec2 scaleOffset; // spot light only
+};
+
+struct GPULightData {
+    glm::vec3 position;
+    float intensity;
+    glm::vec3 dir; // directional only
+    float range;
+    glm::vec3 color;
+    int type;
+    glm::vec2 scaleOffset; // spot light only
+    glm::vec2 padding;
+};
+
 struct Frustum;
 
 class App {
@@ -99,18 +122,13 @@ private:
         glm::mat4 projection;
         glm::mat4 view;
         glm::vec4 cameraPos;
-        glm::vec4 sunlightColorAndIntensity;
-        glm::vec4 sunlightDirAndUnused;
         glm::vec4 ambientColorAndIntensity;
 
-        glm::vec4 pointLightPosAndRange;
-        glm::vec4 pointLightColorAndIntensity;
-
-        glm::vec4 spotLightPosAndRange;
-        glm::vec4 spotLightColorAndIntensity;
-        glm::vec4 spotLightScaleOffsetAndUnused;
-        glm::vec4 spotLightDirAndUnused;
+        GPULightData sunLight;
+        GPULightData pointLight;
+        GPULightData spotLight;
     };
+
     struct PerObjectData {
         glm::mat4 model;
         glm::vec4 props; // x - alpha, yzw - unused
@@ -122,26 +140,18 @@ private:
     gfx::BumpAllocator sceneData;
     std::size_t sceneDataUboOffset;
 
-    glm::vec4 sunlightColor;
-    float sunlightIntensity;
-    glm::vec3 sunlightDir;
-
     glm::vec3 ambientColor;
     float ambientIntensity;
 
+    glm::vec3 sunLightDir;
+    Light sunLight;
+
     glm::vec3 pointLightPosition;
-    float pointLightRange;
-    glm::vec4 pointLightColor;
-    float pointLightIntensity;
+    Light pointLight;
 
     glm::vec3 spotLightPosition;
-    float spotLightRange;
-    glm::vec4 spotLightColor;
-    float spotLightIntensity;
-    glm::vec2 spotLightScaleOffset;
     glm::vec3 spotLightDir;
-
-    glm::vec3 cameraVelocity;
+    Light spotLight;
 
     std::vector<DrawInfo> drawList;
     std::vector<DrawInfo> opaqueDrawList;

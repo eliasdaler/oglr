@@ -8,43 +8,38 @@ layout (location = 0) out vec4 fragColor;
 
 layout (location = 1) uniform sampler2D tex;
 
+#define DIRECTIONAL_LIGHT_TYPE 0
+#define POINT_LIGHT_TYPE 1
+#define SPOT_LIGHT_TYPE 2
+
+struct Light {
+    vec3 position;
+    float intensity;
+    vec3 dir; // directional only
+    float range; // point light only
+    vec3 color;
+    int type;
+    vec2 scaleOffset; // spot light only
+    vec2 padding;
+};
+
 layout (binding = 0, std140) uniform GlobalSceneData
 {
     mat4 projection;
     mat4 view;
     vec4 cameraPos;
 
-    vec4 sunlightColorAndIntensity;
-    vec4 sunlightDirAndUnused;
     vec4 ambientColorAndIntensity;
 
-    vec4 pointLightPositionAndRange;
-    vec4 pointLightColorAndIntensity;
-
-    vec4 spotLightPositionAndRange;
-    vec4 spotLightColorAndIntensity;
-    vec4 spotLightScaleOffsetAndUnused;
-    vec4 spotLightDirAndUnused;
+    Light sunLight;
+    Light pointLight;
+    Light spotLight;
 };
 
 layout (binding = 1, std140) uniform PerObjectData
 {
     mat4 model;
     vec4 props; // x - alpha, yzw - unused
-};
-
-#define DIRECTIONAL_LIGHT_TYPE 0
-#define POINT_LIGHT_TYPE 1
-#define SPOT_LIGHT_TYPE 2
-
-struct Light {
-    vec3 pos;
-    float intensity;
-    vec3 dir; // directinal only
-    float range; // point light only
-    vec3 color;
-    int type;
-    vec2 scaleOffset; // spot light only
 };
 
 vec3 blinnPhongBRDF(vec3 diffuse, vec3 n, vec3 v, vec3 l, vec3 h) {
@@ -76,7 +71,7 @@ float calculateAngularAttenuation(
 }
 
 float calculateAttenuation(vec3 pos, vec3 l, Light light) {
-    float dist = length(light.pos - pos);
+    float dist = length(light.position - pos);
     float atten = calculateDistanceAttenuation(dist, light.range);
     if (light.type == SPOT_LIGHT_TYPE) {
         atten = calculateAngularAttenuation(light.dir, l, light.scaleOffset);
@@ -89,7 +84,7 @@ vec3 calculateLight(vec3 fragPos, vec3 n, vec3 v, vec3 diffuse, Light light) {
     float atten = 1.0;
 
     if (light.type != DIRECTIONAL_LIGHT_TYPE) {
-        l = normalize(light.pos - fragPos);
+        l = normalize(light.position - fragPos);
         atten = calculateAttenuation(fragPos, l, light);
     }
 
@@ -106,35 +101,8 @@ void main()
     vec3 v = normalize(cameraPos.xyz - fragPos);
     vec3 diffuse = texture(tex, inUV).rgb;
 
-    // sun light
-    Light sunLight;
-    sunLight.type = DIRECTIONAL_LIGHT_TYPE;
-    sunLight.color = sunlightColorAndIntensity.rgb;
-    sunLight.dir = sunlightDirAndUnused.xyz;
-    sunLight.intensity = sunlightColorAndIntensity.w;
-
     fragColor.rgb = calculateLight(fragPos, n, v, diffuse, sunLight);
-
-    // point light
-    Light pointLight;
-    pointLight.type = POINT_LIGHT_TYPE;
-    pointLight.pos = pointLightPositionAndRange.xyz;
-    pointLight.range = pointLightPositionAndRange.w;
-    pointLight.color = pointLightColorAndIntensity.rgb;
-    pointLight.intensity = pointLightColorAndIntensity.w;
-
     fragColor.rgb += calculateLight(fragPos, n, v, diffuse, pointLight);
-
-    // spot light
-    Light spotLight;
-    spotLight.type = SPOT_LIGHT_TYPE;
-    spotLight.pos = spotLightPositionAndRange.xyz;
-    spotLight.range = spotLightPositionAndRange.w;
-    spotLight.color = spotLightColorAndIntensity.rgb;
-    spotLight.intensity = spotLightColorAndIntensity.w;
-    spotLight.scaleOffset = spotLightScaleOffsetAndUnused.xy;
-    spotLight.dir = spotLightDirAndUnused.xyz;
-
     fragColor.rgb += calculateLight(fragPos, n, v, diffuse, spotLight);
 
     // ambient

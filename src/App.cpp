@@ -97,6 +97,19 @@ glm::vec2 calculateSpotLightScaleOffset(float innerConeAngle, float outerConeAng
     return scaleOffset;
 }
 
+GPULightData toGPULightData(const glm::vec3& pos, const glm::vec3& dir, const Light& light)
+{
+    return GPULightData{
+        .position = pos,
+        .intensity = light.intensity,
+        .dir = dir,
+        .range = light.range,
+        .color = glm::vec3(light.color),
+        .type = light.type,
+        .scaleOffset = light.scaleOffset,
+    };
+}
+
 } // end of anonymous namespace
 
 void App::start()
@@ -247,29 +260,38 @@ void App::init()
     spawnObject({0.f, 1.f, 7.5f}, cubeMeshIdx, 1, 1.f);
 
     { // init lights
-        sunlightColor = glm::vec4{0.65f, 0.4f, 0.3f, 1.f};
-        sunlightIntensity = 0.25f;
-        sunlightDir = glm::normalize(glm::vec3(1.f, -1.f, 1.f));
-
         ambientColor = glm::vec3{0.3f, 0.65f, 0.8f};
         ambientIntensity = 0.2f;
+
+        sunLightDir = glm::normalize(glm::vec3(1.f, -1.f, 1.f));
+        sunLight = Light{
+            .type = LIGHT_TYPE_DIRECTIONAL,
+            .color = glm::vec4{0.65f, 0.4f, 0.3f, 1.f},
+            .intensity = 1.25f,
+        };
 
         pointLightRotateOrigin = {0.f, 2.5f, 1.25f};
         pointLightRotateAngle = 0.f;
         pointLightRotateRadius = 5.f;
 
         pointLightPosition = {0.f, 2.5f, 1.25f};
-        pointLightRange = 20.f;
-        pointLightColor = glm::vec4{0.1f, 0.75f, 0.3f, 1.f};
-        pointLightIntensity = 10.f;
+        pointLight = Light{
+            .type = LIGHT_TYPE_POINT,
+            .color = glm::vec4{0.1f, 0.75f, 0.3f, 1.f},
+            .intensity = 10.f,
+            .range = 20.f,
+        };
 
         spotLightPosition = {-3.f, 3.5f, 2.f};
-        spotLightRange = 20.f;
-        spotLightColor = glm::vec4{1.f, 1.f, 1.f, 1.f};
-        spotLightIntensity = 2.f;
-        spotLightScaleOffset = calculateSpotLightScaleOffset(0.33, 0.39);
         spotLightDir = glm::normalize(-glm::vec3(1.f, -1.f, 1.f));
-        // spotLightDir = glm::normalize(glm::vec3(0.f, -1.f, 0.f));
+
+        spotLight = Light{
+            .type = LIGHT_TYPE_SPOT,
+            .color = glm::vec4{1.f, 1.f, 1.f, 1.f},
+            .intensity = 2.f,
+            .range = 20.f,
+            .scaleOffset = calculateSpotLightScaleOffset(0.33, 0.39),
+        };
     }
 
     frameStartState = gfx::GlobalState{
@@ -574,19 +596,12 @@ void App::uploadSceneData()
         .projection = projection,
         .view = view,
         .cameraPos = glm::vec4{camera.getPosition(), 0.f},
-        // sun
-        .sunlightColorAndIntensity = glm::vec4{glm::vec3{sunlightColor}, sunlightIntensity},
-        .sunlightDirAndUnused = glm::vec4{sunlightDir, 0.f},
         // ambient
         .ambientColorAndIntensity = glm::vec4{ambientColor, ambientIntensity},
-        // point
-        .pointLightPosAndRange = glm::vec4(pointLightPosition, pointLightRange),
-        .pointLightColorAndIntensity = glm::vec4(glm::vec3(pointLightColor), pointLightIntensity),
-        // spot
-        .spotLightPosAndRange = glm::vec4(spotLightPosition, spotLightRange),
-        .spotLightColorAndIntensity = glm::vec4(glm::vec3(spotLightColor), spotLightIntensity),
-        .spotLightScaleOffsetAndUnused = glm::vec4(spotLightScaleOffset, 0.f, 0.f),
-        .spotLightDirAndUnused = glm::vec4(spotLightDir, 0.f),
+        // lights
+        .sunLight = toGPULightData({}, sunLightDir, sunLight),
+        .pointLight = toGPULightData(pointLightPosition, {}, pointLight),
+        .spotLight = toGPULightData(spotLightPosition, spotLightDir, spotLight),
     };
     sceneDataUboOffset = sceneData.append(d, uboAlignment);
 

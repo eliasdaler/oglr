@@ -7,23 +7,28 @@ struct Vertex {
     float uv_y;
 };
 
+struct Light {
+    vec3 position;
+    float intensity;
+    vec3 dir; // directional only
+    float range; // point light only
+    vec3 color;
+    int type;
+    vec2 scaleOffset; // spot light only
+    vec2 padding;
+};
+
 layout (binding = 0, std140) uniform GlobalSceneData
 {
     mat4 projection;
     mat4 view;
     vec4 cameraPos;
 
-    vec4 sunlightColorAndIntensity;
-    vec4 sunlightDirAndUnused;
     vec4 ambientColorAndIntensity;
 
-    vec4 pointLightPositionAndRange;
-    vec4 pointLightColorAndIntensity;
-
-    vec4 spotLightPositionAndRange;
-    vec4 spotLightColorAndIntensity;
-    vec4 spotLightScaleOffsetAndUnused;
-    vec4 spotLightDirAndUnused;
+    Light sunLight;
+    Light pointLight;
+    Light spotLight;
 };
 
 layout (binding = 1, std140) uniform PerObjectData
