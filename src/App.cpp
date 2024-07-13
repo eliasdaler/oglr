@@ -177,9 +177,14 @@ void App::init()
         worldShader = gfx::
             loadShaderProgram("assets/shaders/basic.vert", "assets/shaders/basic.frag", "world");
         assert(worldShader);
+
         solidColorShader = gfx::loadShaderProgram(
             "assets/shaders/basic.vert", "assets/shaders/solid_color.frag", "world");
         assert(solidColorShader);
+
+        postFXShader = gfx::loadShaderProgram(
+            "assets/shaders/fullscreen_tri.vert", "assets/shaders/postfx.frag", "postfx");
+        assert(postFXShader);
     }
 
     { // allocate scene data buffer
@@ -220,18 +225,6 @@ void App::init()
         cubeMeshIdx = 0;
         planeMeshIdx = 2;
     }
-
-    // initial state
-    glClearDepth(1.f);
-    glClear(GL_DEPTH_BUFFER_BIT);
-
-    glEnable(GL_DEPTH_TEST);
-
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
 
     { // init camera
         const auto fovX = 45.f;
@@ -315,12 +308,42 @@ void App::init()
         .blendEnabled = true,
     };
 
+    postFXDrawState = gfx::GlobalState{
+        .depthTestEnabled = false,
+        .depthWriteEnabled = false,
+        .cullingEnabled = false,
+        .blendEnabled = false,
+    };
+
     wireframesDrawState = gfx::GlobalState{
         .depthTestEnabled = false,
         .depthWriteEnabled = false,
         .cullingEnabled = false,
         .blendEnabled = true,
     };
+
+    { // FBO setup
+        glCreateFramebuffers(1, &mainDrawFBO);
+
+        // Color buffer
+        glCreateTextures(GL_TEXTURE_2D, 1, &mainDrawColorTexture);
+        glTextureStorage2D(mainDrawColorTexture, 1, GL_RGB8, WINDOW_WIDTH, WINDOW_HEIGHT);
+        glTextureParameteri(mainDrawColorTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTextureParameteri(mainDrawColorTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        // Depth buffer
+        glCreateTextures(GL_TEXTURE_2D, 1, &mainDrawDepthTexture);
+        glTextureStorage2D(
+            mainDrawDepthTexture, 1, GL_DEPTH_COMPONENT32F, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+        // Attach buffers
+        glNamedFramebufferTexture(mainDrawFBO, GL_COLOR_ATTACHMENT0, mainDrawColorTexture, 0);
+        glNamedFramebufferTexture(mainDrawFBO, GL_DEPTH_ATTACHMENT, mainDrawDepthTexture, 0);
+
+        // Set draw buffers
+        static const GLenum draw_buffers[]{GL_COLOR_ATTACHMENT0};
+        glNamedFramebufferDrawBuffers(mainDrawFBO, 1, draw_buffers);
+    }
 }
 
 void App::cleanup()
@@ -334,8 +357,11 @@ void App::cleanup()
 
     glDeleteVertexArrays(1, &vao);
 
+    glDeleteProgram(postFXShader);
     glDeleteProgram(solidColorShader);
     glDeleteProgram(worldShader);
+
+    glDeleteFramebuffers(1, &mainDrawFBO);
 
     debugRenderer.cleanup();
 
@@ -489,14 +515,17 @@ void App::render()
 {
     generateDrawList();
 
-    // clear default FBO color and depth
-    gfx::setGlobalState(frameStartState);
-    glClearColor(97.f / 255.f, 120.f / 255.f, 159.f / 255.f, 1.0f);
-    glClearDepth(1.f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
     glBindVertexArray(vao);
-    { // render objects
+
+    {
+        gfx::setGlobalState(frameStartState);
+        glBindFramebuffer(GL_FRAMEBUFFER, mainDrawFBO);
+        // clear fbo buffers
+        GLfloat clearColor[4]{0.f, 0.f, 0.f, 0.f};
+        glClearNamedFramebufferfv(mainDrawFBO, GL_COLOR, 0, clearColor);
+        GLfloat depthValue{1.f};
+        glClearNamedFramebufferfv(mainDrawFBO, GL_DEPTH, 0, &depthValue);
+
         // object texture will be read from TU0
         glProgramUniform1i(worldShader, FRAG_TEXTURE_UNIFORM_LOC, 0);
 
@@ -524,6 +553,24 @@ void App::render()
             gfx::setGlobalState(transparentDrawState);
             renderSceneObjects(transparentDrawList);
         }
+    }
+
+    // restore default FBO
+    // we'll draw everything into it
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    {
+        GL_DEBUG_GROUP("Post FX");
+        static const auto POSTFX_FRAG_TEXTURE_UNIFORM_LOC = 0;
+
+        gfx::setGlobalState(postFXDrawState);
+        glUseProgram(postFXShader);
+
+        glBindTextureUnit(0, mainDrawColorTexture);
+        glProgramUniform1i(postFXShader, POSTFX_FRAG_TEXTURE_UNIFORM_LOC, 0);
+
+        // draw fullscreen triangle
+        glDrawArrays(GL_TRIANGLES, 0, 3);
     }
 
     {
@@ -645,7 +692,6 @@ void App::renderSceneObjects(const std::vector<DrawInfo>& drawList)
             sizeof(PerObjectData));
 
         glBindTextureUnit(0, textures[object.textureIdx]);
-        // glBindTextureUnit(0, textures[object.alpha != 1.f ? 0 : 1]);
         glDrawElements(GL_TRIANGLES, mesh.numIndices, GL_UNSIGNED_INT, 0);
     }
 }

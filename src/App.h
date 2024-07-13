@@ -93,6 +93,7 @@ private:
 
     std::uint32_t worldShader{};
     std::uint32_t solidColorShader{};
+    std::uint32_t postFXShader{};
     std::uint32_t vao{}; // empty vao
 
     std::vector<GPUMesh> meshes;
@@ -162,7 +163,12 @@ private:
     gfx::GlobalState frameStartState;
     gfx::GlobalState opaqueDrawState;
     gfx::GlobalState transparentDrawState;
+    gfx::GlobalState postFXDrawState;
     gfx::GlobalState wireframesDrawState;
+
+    std::uint32_t mainDrawFBO;
+    std::uint32_t mainDrawColorTexture;
+    std::uint32_t mainDrawDepthTexture;
 
     DebugRenderer debugRenderer;
 };
