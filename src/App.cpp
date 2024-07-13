@@ -277,10 +277,10 @@ void App::init()
         };
 
         spotLightPosition = {-3.f, 3.5f, 2.f};
-        spotLightDir = glm::normalize(-glm::vec3(1.f, -1.f, 1.f));
+        spotLightDir = glm::normalize(glm::vec3(1.f, -1.f, 1.f));
 
         // spotLightPosition = {-3.f, 5.0f, 2.f};
-        // spotLightDir = glm::normalize(-glm::vec3(0.f, -1.f, 0.f));
+        spotLightDir = glm::normalize(glm::vec3(0.f, -1.f, 0.f));
 
         spotLight = Light{
             .type = LIGHT_TYPE_SPOT,
@@ -297,7 +297,13 @@ void App::init()
             spotLightCamera.init(fovX, zNear, zFar, 1.f);
             spotLightCamera.setPosition({0.f, 2.5f, -10.f});
             spotLightCamera.setPosition(spotLightPosition);
-            spotLightCamera.setHeading(glm::quatLookAt(spotLightDir, math::GLOBAL_UP_DIR));
+
+            if (std::abs(glm::dot(spotLightDir, math::GLOBAL_UP_DIR)) > 0.9999f) {
+                spotLightCamera.setHeading(
+                    glm::quatLookAt(-spotLightDir, math::GLOBAL_FORWARD_DIR));
+            } else {
+                spotLightCamera.setHeading(glm::quatLookAt(-spotLightDir, math::GLOBAL_UP_DIR));
+            }
         }
     }
 
@@ -741,7 +747,7 @@ void App::renderDebugObjects()
     // spot light
     debugRenderer.addLine(
         spotLightPosition,
-        spotLightPosition - spotLightDir * 1.f,
+        spotLightPosition + spotLightDir * 1.f,
         glm::vec4{1.f, 0.f, 0.f, 1.f},
         glm::vec4{0.f, 1.f, 0.f, 1.f});
 

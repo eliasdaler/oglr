@@ -25,7 +25,7 @@ float calculateDistanceAttenuation(float dist, float range)
 float calculateAngularAttenuation(
         vec3 lightDir, vec3 l,
         vec2 scaleOffset) {
-    float cd = dot(lightDir, l);
+    float cd = dot(-lightDir, l);
     float angularAttenuation = clamp(cd * scaleOffset.x + scaleOffset.y, 0.0, 1.0);
     angularAttenuation *= angularAttenuation;
     return angularAttenuation;
