@@ -119,11 +119,13 @@ private:
     float pointLightRotateRadius{1.f};
     glm::vec3 pointLightRotateOrigin{};
 
-    struct GlobalSceneData {
+    struct CameraData {
         glm::mat4 projection;
         glm::mat4 view;
         glm::vec4 cameraPos;
+    };
 
+    struct LightData {
         glm::vec3 ambientColor;
         float ambientIntensity;
 
@@ -143,7 +145,8 @@ private:
     int uboAlignment{4};
 
     gfx::BumpAllocator sceneData;
-    std::size_t sceneDataUboOffset;
+    std::size_t cameraDataUboOffset;
+    std::size_t lightDataUboOffset;
 
     glm::vec3 ambientColor;
     float ambientIntensity;
@@ -173,6 +176,10 @@ private:
     std::uint32_t mainDrawFBO;
     std::uint32_t mainDrawColorTexture;
     std::uint32_t mainDrawDepthTexture;
+
+    std::uint32_t shadowMapFBO;
+    std::uint32_t shadowMapDepthTexture;
+    int shadowMapSize{1024};
 
     DebugRenderer debugRenderer;
 };

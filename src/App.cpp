@@ -25,9 +25,10 @@ constexpr auto WINDOW_HEIGHT = 960;
 
 constexpr auto FRAG_TEXTURE_UNIFORM_LOC = 1;
 
-constexpr auto GLOBAL_SCENE_DATA_BINDING = 0;
-constexpr auto PER_OBJECT_DATA_BINDING = 1;
-constexpr auto VERTEX_DATA_BINDING = 2;
+constexpr auto CAMERA_DATA_BINDING = 0;
+constexpr auto LIGHT_DATA_BINDING = 1;
+constexpr auto PER_OBJECT_DATA_BINDING = 2;
+constexpr auto VERTEX_DATA_BINDING = 3;
 
 template<typename T, typename RNGType>
 std::size_t chooseRandomElementIndex(const std::vector<T>& v, RNGType& rng)
@@ -188,10 +189,11 @@ void App::init()
     }
 
     { // allocate scene data buffer
-        const auto globalSceneDataSize = gfx::getAlignedSize(sizeof(GlobalSceneData), uboAlignment);
+        const auto cameraDataSize = gfx::getAlignedSize(sizeof(CameraData), uboAlignment);
+        const auto lightDataSize = gfx::getAlignedSize(sizeof(LightData), uboAlignment);
         const auto perObjectDataElementSize =
             gfx::getAlignedSize(sizeof(PerObjectData), uboAlignment);
-        const auto bufSize = globalSceneDataSize + perObjectDataElementSize * 100;
+        const auto bufSize = cameraDataSize + lightDataSize + perObjectDataElementSize * 100;
         sceneDataBuffer = gfx::allocateBuffer(bufSize, nullptr, "sceneData");
         sceneData.resize(bufSize);
     }
@@ -280,7 +282,7 @@ void App::init()
         spotLightDir = glm::normalize(glm::vec3(1.f, -1.f, 1.f));
 
         // spotLightPosition = {-3.f, 5.0f, 2.f};
-        spotLightDir = glm::normalize(glm::vec3(0.f, -1.f, 0.f));
+        // spotLightDir = glm::normalize(glm::vec3(0.f, -1.f, 0.f));
 
         spotLight = Light{
             .type = LIGHT_TYPE_SPOT,
@@ -363,6 +365,18 @@ void App::init()
         // Set draw buffers
         static const GLenum draw_buffers[]{GL_COLOR_ATTACHMENT0};
         glNamedFramebufferDrawBuffers(mainDrawFBO, 1, draw_buffers);
+    }
+
+    { // shadow map setup
+        glCreateFramebuffers(1, &shadowMapFBO);
+
+        // Depth buffer
+        glCreateTextures(GL_TEXTURE_2D, 1, &shadowMapDepthTexture);
+        glTextureStorage2D(
+            shadowMapDepthTexture, 1, GL_DEPTH_COMPONENT32F, shadowMapSize, shadowMapSize);
+
+        // Attach buffers
+        glNamedFramebufferTexture(shadowMapFBO, GL_DEPTH_ATTACHMENT, shadowMapDepthTexture, 0);
     }
 }
 
@@ -557,20 +571,22 @@ void App::render()
 
         glBindBufferRange(
             GL_UNIFORM_BUFFER,
-            GLOBAL_SCENE_DATA_BINDING,
+            CAMERA_DATA_BINDING,
             sceneDataBuffer.buffer,
-            sceneDataUboOffset,
-            sizeof(GlobalSceneData));
+            cameraDataUboOffset,
+            sizeof(CameraData));
+        glBindBufferRange(
+            GL_UNIFORM_BUFFER,
+            LIGHT_DATA_BINDING,
+            sceneDataBuffer.buffer,
+            lightDataUboOffset,
+            sizeof(LightData));
 
         glUseProgram(worldShader);
 
         {
             GL_DEBUG_GROUP("Opaque pass");
             gfx::setGlobalState(opaqueDrawState);
-            gfx::setGlobalState({
-                .depthWriteEnabled = true,
-                .blendEnabled = false,
-            });
             renderSceneObjects(opaqueDrawList);
         }
 
@@ -579,6 +595,17 @@ void App::render()
             gfx::setGlobalState(transparentDrawState);
             renderSceneObjects(transparentDrawList);
         }
+    }
+
+    {
+        GL_DEBUG_GROUP("Shadow pass");
+        gfx::setGlobalState(opaqueDrawState);
+        glBindFramebuffer(GL_FRAMEBUFFER, shadowMapFBO);
+        // clear
+        GLfloat depthValue{1.f};
+        glClearNamedFramebufferfv(shadowMapFBO, GL_DEPTH, 0, &depthValue);
+
+        renderSceneObjects(opaqueDrawList);
     }
 
     // restore default FBO
@@ -665,10 +692,15 @@ void App::uploadSceneData()
     // global scene data
     const auto projection = camera.getProjection();
     const auto view = camera.getView();
-    const auto d = GlobalSceneData{
+
+    const auto cd = CameraData{
         .projection = projection,
         .view = view,
         .cameraPos = glm::vec4{camera.getPosition(), 0.f},
+    };
+    cameraDataUboOffset = sceneData.append(cd, uboAlignment);
+
+    const auto ld = LightData{
         // ambient
         .ambientColor = glm::vec3{ambientColor},
         .ambientIntensity = ambientIntensity,
@@ -678,7 +710,7 @@ void App::uploadSceneData()
         .spotLight = toGPULightData(spotLightPosition, spotLightDir, spotLight),
         .spotLightSpaceTM = spotLightCamera.getViewProj(),
     };
-    sceneDataUboOffset = sceneData.append(d, uboAlignment);
+    lightDataUboOffset = sceneData.append(ld, uboAlignment);
 
     // per object data
     for (auto& drawInfo : drawList) {
