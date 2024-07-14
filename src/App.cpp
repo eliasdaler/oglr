@@ -765,16 +765,16 @@ void App::uploadSceneData()
         pl.color = glm::vec4{0.f, 0.f, 0.f, 1.f};
     }
 
-    const auto ld = LightData{
+    auto ld = LightData{
         // ambient
         .ambientColor = glm::vec3{ambientColor},
         .ambientIntensity = ambientIntensity,
         // lights
         .sunLight = toGPULightData({}, sunLightDir, sunLight),
-        .pointLight = toGPULightData(pointLightPosition, {}, pl),
-        .spotLight = toGPULightData(spotLightPosition, spotLightDir, spl),
         .spotLightSpaceTM = spotLightCamera.getViewProj(),
     };
+    ld.lights[0] = toGPULightData(pointLightPosition, {}, pl);
+    ld.lights[1] = toGPULightData(spotLightPosition, spotLightDir, spl),
     lightDataUboOffset = sceneData.append(ld, uboAlignment);
 
     // per object data

@@ -51,6 +51,8 @@ struct GPULightData {
 
 struct Frustum;
 
+inline constexpr std::size_t MAX_LIGHTS_IN_UBO = 32;
+
 class App {
 public:
     void start();
@@ -132,10 +134,8 @@ private:
         float ambientIntensity;
 
         GPULightData sunLight;
-        GPULightData pointLight;
-        GPULightData spotLight;
-
         glm::mat4 spotLightSpaceTM;
+        std::array<GPULightData, MAX_LIGHTS_IN_UBO> lights;
     };
 
     struct PerObjectData {

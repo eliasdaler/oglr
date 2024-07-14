@@ -42,13 +42,16 @@ void main()
     fragColor.rgb = vec3(0.f, 0.f, 0.f);
 
     fragColor.rgb += calculateLight(fragPos, n, v, diffuse, sunLight, 1.0);
-    fragColor.rgb += calculateLight(fragPos, n, v, diffuse, pointLight, 1.0);
 
-    float NoL = dot(n, normalize(spotLight.position - fragPos));
-    float occlusion = calculateOcclusion(fragPos, spotLightSpaceTM, NoL);
-    fragColor.rgb += calculateLight(fragPos, n, v, diffuse, spotLight, occlusion);
+    // float NoL = dot(n, normalize(spotLight.position - fragPos));
+    // float occlusion = calculateOcclusion(fragPos, spotLightSpaceTM, NoL);
+    // fragColor.rgb += calculateLight(fragPos, n, v, diffuse, spotLight, occlusion);
 
-    // ambient
+    // other lights
+    for (int i = 0; i < 2; i++) {
+        fragColor.rgb += calculateLight(fragPos, n, v, diffuse, lights[i], 1.0);
+    }
+
     fragColor.rgb += diffuse * ambientColor * ambientIntensity;
 
     // gobo

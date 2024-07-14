@@ -8,16 +8,17 @@ layout (binding = 0, std140) uniform CameraData
     vec4 cameraPos;
 };
 
+#define MAX_LIGHTS 32
+
 layout (binding = 1, std140) uniform LightData
 {
     vec3 ambientColor;
     float ambientIntensity;
 
     Light sunLight;
-    Light pointLight;
-    Light spotLight;
-
     mat4 spotLightSpaceTM;
+
+    Light lights[MAX_LIGHTS];
 };
 
 layout (binding = 2, std140) uniform PerObjectData
