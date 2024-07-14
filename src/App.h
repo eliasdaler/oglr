@@ -42,6 +42,20 @@ struct Light {
     glm::vec2 scaleOffset; // spot light only
 };
 
+struct CPULightData {
+    glm::vec3 position;
+    glm::vec3 direction;
+    Light light;
+
+    // animation
+    glm::vec3 rotationOrigin{};
+    float rotationAngle{0.f};
+    float rotationRadius{1.f};
+    float rotationSpeed{0.f};
+
+    bool culled{false};
+};
+
 struct GPULightData {
     glm::vec3 position;
     float intensity;
@@ -155,19 +169,6 @@ private:
     glm::vec3 sunLightDir;
     Light sunLight;
 
-    struct CPULightData {
-        glm::vec3 position;
-        glm::vec3 direction;
-        Light light;
-
-        // animation
-        glm::vec3 rotationOrigin{};
-        float rotationAngle{0.f};
-        float rotationRadius{1.f};
-        float rotationSpeed{0.f};
-
-        bool culled{false};
-    };
     std::vector<CPULightData> lights;
 
     std::vector<DrawInfo> drawList;

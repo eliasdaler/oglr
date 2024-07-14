@@ -149,6 +149,48 @@ bool shouldCullLight(
     return !util::isInFrustum(frustum, aabb);
 }
 
+std::array<int, MAX_AFFECTING_LIGHTS> getClosestLights(
+    const glm::vec3& objPos,
+    const std::vector<CPULightData>& lights)
+{
+    struct LightDist {
+        std::size_t idx;
+        float dist;
+    };
+    std::vector<LightDist> dists;
+    for (std::size_t i = 0; i < lights.size(); ++i) {
+        if (lights[i].culled) {
+            continue;
+        }
+        auto ld = LightDist{
+            .idx = i,
+            .dist = glm::length(lights[i].position - objPos),
+        };
+        // HACK: always include spot lights for image stability
+        if (lights[i].light.type == LIGHT_TYPE_SPOT) {
+            ld.dist = 0;
+        }
+        dists.push_back(ld);
+    }
+
+    std::sort(dists.begin(), dists.end(), [](const auto& d1, const auto& d2) {
+        return d1.dist <= d2.dist;
+    });
+
+    std::array<int, MAX_AFFECTING_LIGHTS> lightIdx;
+
+    // select closes MAX_AFFECTING_LIGHTS
+    // and if not enough - add (MAX_LIGHTS_IN_UBO + 1), indicating "no light"
+    for (int i = 0; i < MAX_AFFECTING_LIGHTS; ++i) {
+        if (i < dists.size()) {
+            lightIdx[i] = dists[i].idx;
+        } else {
+            lightIdx[i] = MAX_LIGHTS_IN_UBO + 1;
+        }
+    }
+    return lightIdx;
+}
+
 } // end of anonymous namespace
 
 void App::start()
@@ -747,40 +789,11 @@ void App::generateDrawList()
 
         const auto distToCamera = glm::length(camera.getPosition() - object.transform.position);
 
-        DrawInfo di{
+        drawList.push_back(DrawInfo{
             .objectIdx = i,
             .distToCamera = distToCamera,
-        };
-
-        struct LightDist {
-            std::size_t idx;
-            float dist;
-        };
-        std::vector<LightDist> dists;
-        for (std::size_t i = 0; i < lights.size(); ++i) {
-            if (lights[i].culled) {
-                continue;
-            }
-            auto ld = LightDist{
-                .idx = i, .dist = glm::length(lights[i].position - object.transform.position)};
-            // HACK: always include spot lights
-            if (lights[i].light.type == LIGHT_TYPE_SPOT) {
-                ld.dist = 0;
-            }
-            dists.push_back(ld);
-        }
-        std::sort(dists.begin(), dists.end(), [](const auto& d1, const auto& d2) {
-            return d1.dist <= d2.dist;
+            .lightIdx = getClosestLights(object.transform.position, lights),
         });
-        for (int i = 0; i < MAX_AFFECTING_LIGHTS; ++i) {
-            if (i < dists.size()) {
-                di.lightIdx[i] = dists[i].idx;
-            } else {
-                di.lightIdx[i] = MAX_LIGHTS_IN_UBO + 1;
-            }
-        }
-
-        drawList.push_back(di);
     }
 
     uploadSceneData();
