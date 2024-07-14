@@ -510,6 +510,7 @@ void App::update(float dt)
     ImGui::Checkbox("Use test camera for culling", &useTestCameraForCulling);
     ImGui::Checkbox("Draw AABBs", &drawAABBs);
     ImGui::Checkbox("Draw wireframes", &drawWireframes);
+    ImGui::Text("Spotlight culled: %d", (int)spotLightCulled);
     if (ImGui::Button("Update test camera")) {
         testCamera = camera;
     }
@@ -679,10 +680,10 @@ void App::generateDrawList()
     // separate into opaque and transparent lists
     opaqueDrawList.clear();
     transparentDrawList.clear();
-    const auto frustum = getFrustum();
+    const auto mainCameraFrustum = getFrustum();
     for (const auto& drawInfo : drawList) {
         const auto& object = objects[drawInfo.objectIdx];
-        if (!util::isInFrustum(frustum, object.worldAABB)) {
+        if (!util::isInFrustum(mainCameraFrustum, object.worldAABB)) {
             continue;
         }
 
@@ -696,13 +697,24 @@ void App::generateDrawList()
     sortDrawList(opaqueDrawList, SortOrder::FrontToBack);
     sortDrawList(transparentDrawList, SortOrder::BackToFront);
 
+    { // recalc spotlight AABB
+        const auto spotLightPoints = util::calculateFrustumCornersWorldSpace(spotLightCamera);
+        std::vector<glm::vec3> points;
+        points.assign(spotLightPoints.begin(), spotLightPoints.end());
+        spotLightAABB = util::calculateAABB(points);
+    }
+
+    spotLightCulled = !util::isInFrustum(mainCameraFrustum, spotLightAABB);
+
     // shadow map draw list
     shadowMapOpaqueDrawList.clear();
-    const auto spotLightFrustum = util::createFrustumFromCamera(spotLightCamera);
-    for (const auto& drawInfo : drawList) {
-        const auto& object = objects[drawInfo.objectIdx];
-        if (object.alpha == 1.f && util::isInFrustum(spotLightFrustum, object.worldAABB)) {
-            shadowMapOpaqueDrawList.push_back(drawInfo);
+    if (!spotLightCulled) {
+        const auto spotLightFrustum = util::createFrustumFromCamera(spotLightCamera);
+        for (const auto& drawInfo : drawList) {
+            const auto& object = objects[drawInfo.objectIdx];
+            if (object.alpha == 1.f && util::isInFrustum(spotLightFrustum, object.worldAABB)) {
+                shadowMapOpaqueDrawList.push_back(drawInfo);
+            }
         }
     }
 }
@@ -756,7 +768,6 @@ void App::uploadSceneData()
     }
 
     // reallocate buffer if needed
-    // const auto sceneDataSize = sizeof(PerObjectData) * sceneData.size();
     while (sceneData.getData().size() > sceneDataBuffer.size) {
         glDeleteBuffers(1, &sceneDataBuffer.buffer);
         sceneDataBuffer = gfx::allocateBuffer(sceneDataBuffer.size * 2, nullptr, "sceneData");
@@ -823,8 +834,11 @@ void App::renderDebugObjects()
         }
     }
 
-    // debugRenderer.addFrustumLines(spotLightCamera);
+    debugRenderer.addFrustumLines(spotLightCamera);
     // debugRenderer.addFrustumLines(testCamera);
+    if (drawAABBs) {
+        debugRenderer.addAABBLines(spotLightAABB, glm::vec4{1.f, 0.f, 1.f, 1.f});
+    }
 
     { // world origin
         debugRenderer.addLine(

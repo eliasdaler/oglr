@@ -28,6 +28,7 @@ float calculateOcclusion(vec3 fragPos, mat4 lightSpaceTM, float NoL) {
 
     float currentDepth = projCoords.z;
     float closestDepth = texture(shadowMapTex, projCoords.xy).r;
+    float visibility = 1.0;
     return currentDepth - bias > closestDepth ? 0.0 : 1.0;
 }
 

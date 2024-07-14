@@ -164,6 +164,8 @@ private:
     Light spotLight;
 
     Camera spotLightCamera;
+    bool spotLightCulled{false};
+    AABB spotLightAABB;
 
     std::vector<DrawInfo> drawList;
     std::vector<DrawInfo> opaqueDrawList;
