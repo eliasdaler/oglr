@@ -48,8 +48,10 @@ void main()
     // fragColor.rgb += calculateLight(fragPos, n, v, diffuse, spotLight, occlusion);
 
     // other lights
-    for (int i = 0; i < 18; i++) {
-        fragColor.rgb += calculateLight(fragPos, n, v, diffuse, lights[i], 1.0);
+    for (int i = 0; i < MAX_AFFECTING_LIGHTS; i++) {
+        int idx = lightIdx[i >> 2][i & 3];
+        if (idx > MAX_LIGHTS) { continue; }
+        fragColor.rgb += calculateLight(fragPos, n, v, diffuse, lights[idx], 1.0);
     }
 
     fragColor.rgb += diffuse * ambientColor * ambientIntensity;

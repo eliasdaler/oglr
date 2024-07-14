@@ -161,6 +161,7 @@ void App::start()
 void App::init()
 {
     rng = std::mt19937{randomDevice()};
+    rng.seed(42);
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) < 0) {
         printf("SDL could not initialize. SDL Error: %s\n", SDL_GetError());
@@ -313,13 +314,14 @@ void App::init()
         };
 
         std::uniform_real_distribution<float> posXZDist(-10.f, 10.f);
-        std::uniform_real_distribution<float> posYDist(0.25f, 5.0f);
+        std::uniform_real_distribution<float> posYDist(1.5f, 5.0f);
         std::uniform_real_distribution<float> rangeDist(4.f, 15.f);
         std::uniform_real_distribution<float> colorDist(0.2f, 0.9f);
         std::uniform_real_distribution<float> rotationRadiusDist(1.f, 10.f);
         std::uniform_real_distribution<float> rotationSpeedDist(-1.5f, 1.5f);
-        for (std::size_t i = 0; i < 15; ++i) {
+        for (std::size_t i = 0; i < 30; ++i) {
             lights.push_back(CPULightData{
+                .position = {posXZDist(rng), posYDist(rng), posXZDist(rng)},
                 .light =
                     Light{
                         .type = LIGHT_TYPE_POINT,
@@ -724,6 +726,14 @@ void App::generateDrawList()
 {
     drawList.clear();
 
+    const auto mainCameraFrustum = getFrustum();
+
+    // cull lights
+    for (auto& light : lights) {
+        light.culled =
+            shouldCullLight(mainCameraFrustum, light.position, light.direction, light.light);
+    }
+
     for (std::size_t i = 0; i < objects.size(); ++i) {
         auto& object = objects[i];
         if (object.alpha == 0.f) {
@@ -736,10 +746,41 @@ void App::generateDrawList()
         object.worldAABB = util::calculateWorldAABB(meshAABB, tm);
 
         const auto distToCamera = glm::length(camera.getPosition() - object.transform.position);
-        drawList.push_back(DrawInfo{
+
+        DrawInfo di{
             .objectIdx = i,
             .distToCamera = distToCamera,
+        };
+
+        struct LightDist {
+            std::size_t idx;
+            float dist;
+        };
+        std::vector<LightDist> dists;
+        for (std::size_t i = 0; i < lights.size(); ++i) {
+            if (lights[i].culled) {
+                continue;
+            }
+            auto ld = LightDist{
+                .idx = i, .dist = glm::length(lights[i].position - object.transform.position)};
+            // HACK: always include spot lights
+            if (lights[i].light.type == LIGHT_TYPE_SPOT) {
+                ld.dist = 0;
+            }
+            dists.push_back(ld);
+        }
+        std::sort(dists.begin(), dists.end(), [](const auto& d1, const auto& d2) {
+            return d1.dist <= d2.dist;
         });
+        for (int i = 0; i < MAX_AFFECTING_LIGHTS; ++i) {
+            if (i < dists.size()) {
+                di.lightIdx[i] = dists[i].idx;
+            } else {
+                di.lightIdx[i] = MAX_LIGHTS_IN_UBO + 1;
+            }
+        }
+
+        drawList.push_back(di);
     }
 
     uploadSceneData();
@@ -747,8 +788,7 @@ void App::generateDrawList()
     // separate into opaque and transparent lists
     opaqueDrawList.clear();
     transparentDrawList.clear();
-    const auto mainCameraFrustum = getFrustum();
-    for (const auto& drawInfo : drawList) {
+    for (auto& drawInfo : drawList) {
         const auto& object = objects[drawInfo.objectIdx];
         if (!util::isInFrustum(mainCameraFrustum, object.worldAABB)) {
             continue;
@@ -763,11 +803,6 @@ void App::generateDrawList()
 
     sortDrawList(opaqueDrawList, SortOrder::FrontToBack);
     sortDrawList(transparentDrawList, SortOrder::BackToFront);
-
-    for (auto& light : lights) { // check if point light should be culled
-        light.culled =
-            shouldCullLight(mainCameraFrustum, light.position, light.direction, light.light);
-    }
 
     // shadow map draw list
     shadowMapOpaqueDrawList.clear();
@@ -818,14 +853,11 @@ void App::uploadSceneData()
         // .spotLightSpaceTM = spotLightCamera.getViewProj(),
     };
 
+    assert(lights.size() <= MAX_LIGHTS_IN_UBO);
     std::size_t currentLightIndex = 0;
     for (const auto& light : lights) {
-        if (light.culled) {
-            continue;
-        }
         ld.lights[currentLightIndex] = toGPULightData(light.position, light.direction, light.light);
         ++currentLightIndex;
-        assert(currentLightIndex < MAX_LIGHTS_IN_UBO);
     }
     // ld.lights[currentLightIndex] = toGPULightData(spotLightPosition, spotLightDir, spl),
     lightDataUboOffset = sceneData.append(ld, uboAlignment);
@@ -836,6 +868,7 @@ void App::uploadSceneData()
         const auto d = PerObjectData{
             .model = object.transform.asMatrix(),
             .props = glm::vec4{object.alpha, 0.f, 0.f, 0.f},
+            .lightIdx = drawInfo.lightIdx,
         };
         drawInfo.uboOffset = sceneData.append(d, uboAlignment);
     }

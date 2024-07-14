@@ -20,10 +20,14 @@ struct ObjectData {
     AABB worldAABB; // aabb in world space
 };
 
+inline constexpr std::size_t MAX_LIGHTS_IN_UBO = 32;
+inline constexpr std::size_t MAX_AFFECTING_LIGHTS = 8;
+
 struct DrawInfo {
     std::size_t objectIdx;
     std::size_t uboOffset;
     float distToCamera;
+    std::array<int, MAX_AFFECTING_LIGHTS> lightIdx;
 };
 
 inline constexpr int LIGHT_TYPE_DIRECTIONAL = 0;
@@ -50,8 +54,6 @@ struct GPULightData {
 };
 
 struct Frustum;
-
-inline constexpr std::size_t MAX_LIGHTS_IN_UBO = 32;
 
 class App {
 public:
@@ -92,7 +94,6 @@ private:
 
     std::random_device randomDevice;
     std::mt19937 rng;
-    std::uniform_int_distribution<int> dist{1, 10};
 
     std::uint32_t worldShader{};
     std::uint32_t depthOnlyShader{};
@@ -115,7 +116,7 @@ private:
     bool drawWireframes{false};
 
     float timer{0.f};
-    float timeToSpawnNewObject{0.25f};
+    float timeToSpawnNewObject{0.5f};
     std::vector<std::size_t> randomSpawnMeshes;
     std::vector<std::size_t> randomSpawnTextures;
 
@@ -137,6 +138,7 @@ private:
     struct PerObjectData {
         glm::mat4 model;
         glm::vec4 props; // x - alpha, yzw - unused
+        std::array<int, MAX_AFFECTING_LIGHTS> lightIdx; // indices of lights affecting the object
     };
     GPUBuffer sceneDataBuffer;
 
