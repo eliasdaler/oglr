@@ -64,6 +64,7 @@ private:
 
     void generateDrawList();
     void uploadSceneData();
+    void renderShadowMap();
     void renderSceneObjects(const std::vector<DrawInfo>& drawList);
     void renderDebugObjects();
     void renderWireframes(const std::vector<DrawInfo>& drawList);
@@ -167,6 +168,8 @@ private:
     std::vector<DrawInfo> drawList;
     std::vector<DrawInfo> opaqueDrawList;
     std::vector<DrawInfo> transparentDrawList;
+
+    std::vector<DrawInfo> shadowMapOpaqueDrawList;
 
     gfx::GlobalState frameStartState;
     gfx::GlobalState opaqueDrawState;

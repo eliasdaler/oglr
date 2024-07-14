@@ -253,8 +253,8 @@ void App::init()
     spawnObject({}, planeMeshIdx, 2, 1.f);
     // some cubes
     spawnObject({0.f, 1.f, 0.f}, cubeMeshIdx, 0, 1.0f);
-    spawnObject({0.f, 1.f, 2.5f}, cubeMeshIdx, 1, 1.f);
-    spawnObject({0.f, 1.f, 5.f}, cubeMeshIdx, 0, 1.0f);
+    spawnObject({0.f, 1.f, 2.5f}, cubeMeshIdx, 1, 0.5f);
+    spawnObject({0.f, 1.f, 5.f}, cubeMeshIdx, 0, 1.f);
     spawnObject({0.f, 1.f, 7.5f}, cubeMeshIdx, 1, 1.f);
     // star
     // spawnObject({0.f, 0.1f, 5.0f}, 1, 0, 1.f);
@@ -505,7 +505,8 @@ void App::update(float dt)
 
     ImGui::Begin("Debug");
     ImGui::Text("Total objects: %d", (int)objects.size());
-    ImGui::Text("Drawn objects: %d", (int)drawList.size());
+    ImGui::Text("Drawn objects: %d", (int)(opaqueDrawList.size() + transparentDrawList.size()));
+    ImGui::Text("Drawn objects (shadow map): %d", (int)shadowMapOpaqueDrawList.size());
     ImGui::Checkbox("Use test camera for culling", &useTestCameraForCulling);
     ImGui::Checkbox("Draw AABBs", &drawAABBs);
     ImGui::Checkbox("Draw wireframes", &drawWireframes);
@@ -563,28 +564,7 @@ void App::render()
     {
         GL_DEBUG_GROUP("Shadow pass");
         gfx::setGlobalState(opaqueDrawState);
-        glViewport(0, 0, shadowMapSize, shadowMapSize);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shadowMapFBO);
-        // clear
-        GLfloat depthValue{1.f};
-        glClearNamedFramebufferfv(shadowMapFBO, GL_DEPTH, 0, &depthValue);
-
-        glBindBufferRange(
-            GL_UNIFORM_BUFFER,
-            CAMERA_DATA_BINDING,
-            sceneDataBuffer.buffer,
-            cameraDataUboOffsets[1],
-            sizeof(CameraData));
-        glBindBufferRange(
-            GL_UNIFORM_BUFFER,
-            LIGHT_DATA_BINDING,
-            sceneDataBuffer.buffer,
-            lightDataUboOffset,
-            sizeof(LightData));
-
-        glUseProgram(worldShader);
-
-        renderSceneObjects(opaqueDrawList);
+        renderShadowMap();
     }
 
     {
@@ -689,10 +669,6 @@ void App::generateDrawList()
         const auto tm = object.transform.asMatrix();
         object.worldAABB = util::calculateWorldAABB(meshAABB, tm);
 
-        if (!util::isInFrustum(frustum, object.worldAABB)) {
-            continue;
-        }
-
         const auto distToCamera = glm::length(camera.getPosition() - object.transform.position);
         drawList.push_back(DrawInfo{
             .objectIdx = i,
@@ -702,10 +678,16 @@ void App::generateDrawList()
 
     uploadSceneData();
 
+    // separate into opaque and transparent lists
     opaqueDrawList.clear();
     transparentDrawList.clear();
     for (const auto& drawInfo : drawList) {
-        if (objects[drawInfo.objectIdx].alpha == 1.f) {
+        const auto& object = objects[drawInfo.objectIdx];
+        if (!util::isInFrustum(frustum, object.worldAABB)) {
+            continue;
+        }
+
+        if (object.alpha == 1.f) {
             opaqueDrawList.push_back(drawInfo);
         } else {
             transparentDrawList.push_back(drawInfo);
@@ -714,6 +696,16 @@ void App::generateDrawList()
 
     sortDrawList(opaqueDrawList, SortOrder::FrontToBack);
     sortDrawList(transparentDrawList, SortOrder::BackToFront);
+
+    // shadow map draw list
+    shadowMapOpaqueDrawList.clear();
+    const auto spotLightFrustum = util::createFrustumFromCamera(spotLightCamera);
+    for (const auto& drawInfo : drawList) {
+        const auto& object = objects[drawInfo.objectIdx];
+        if (object.alpha == 1.f && util::isInFrustum(spotLightFrustum, object.worldAABB)) {
+            shadowMapOpaqueDrawList.push_back(drawInfo);
+        }
+    }
 }
 
 void App::uploadSceneData()
@@ -775,6 +767,32 @@ void App::uploadSceneData()
     // upload new data
     glNamedBufferSubData(
         sceneDataBuffer.buffer, 0, sceneData.getData().size(), sceneData.getData().data());
+}
+
+void App::renderShadowMap()
+{
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shadowMapFBO);
+    glViewport(0, 0, shadowMapSize, shadowMapSize);
+    // clear shadow map
+    GLfloat depthValue{1.f};
+    glClearNamedFramebufferfv(shadowMapFBO, GL_DEPTH, 0, &depthValue);
+
+    glBindBufferRange(
+        GL_UNIFORM_BUFFER,
+        CAMERA_DATA_BINDING,
+        sceneDataBuffer.buffer,
+        cameraDataUboOffsets[1],
+        sizeof(CameraData));
+    glBindBufferRange(
+        GL_UNIFORM_BUFFER,
+        LIGHT_DATA_BINDING,
+        sceneDataBuffer.buffer,
+        lightDataUboOffset,
+        sizeof(LightData));
+
+    glUseProgram(worldShader);
+
+    renderSceneObjects(shadowMapOpaqueDrawList);
 }
 
 void App::renderSceneObjects(const std::vector<DrawInfo>& drawList)
