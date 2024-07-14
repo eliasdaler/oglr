@@ -14,7 +14,7 @@ struct Light {
     vec3 color;
     int type;
     vec2 scaleOffset; // spot light only
-    vec2 padding;
+    vec2 props; // x - cast shadow, y - unused
 };
 
 #endif // LIGHT_GLSL

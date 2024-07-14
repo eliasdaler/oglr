@@ -46,7 +46,7 @@ struct GPULightData {
     glm::vec3 color;
     int type;
     glm::vec2 scaleOffset; // spot light only
-    glm::vec2 padding;
+    glm::vec2 props;
 };
 
 struct Frustum;
@@ -128,14 +128,8 @@ private:
     };
 
     struct LightData {
-        glm::vec3 ambientColor;
-        float ambientIntensity;
-
-        GPULightData sunLight;
-        GPULightData pointLight;
-        GPULightData spotLight;
-
-        glm::mat4 spotLightSpaceTM;
+        GPULightData light;
+        glm::mat4 lightSpaceTM;
     };
 
     struct PerObjectData {
@@ -148,8 +142,9 @@ private:
 
     gfx::BumpAllocator sceneData;
     std::size_t MAX_CAMERAS_IN_UBO = 8;
+    std::size_t MAX_LIGHS_IN_UBO = 8;
     std::vector<std::size_t> cameraDataUboOffsets; // 0 - main camera, 1 etc. - other cameras
-    std::size_t lightDataUboOffset;
+    std::vector<std::size_t> lightsUboOffsets;
 
     glm::vec3 ambientColor;
     float ambientIntensity;

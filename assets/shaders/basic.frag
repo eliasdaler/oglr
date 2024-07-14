@@ -39,29 +39,13 @@ void main()
     vec3 v = normalize(cameraPos.xyz - fragPos);
     vec3 diffuse = texture(tex, inUV).rgb;
 
-    fragColor.rgb = vec3(0.f, 0.f, 0.f);
+    float occlusion = 1.0;
+    if (light.props.x == 1.0) {
+        float NoL = dot(n, normalize(light.position - fragPos));
+        occlusion = calculateOcclusion(fragPos, lightSpaceTM, NoL);
+    }
 
-    fragColor.rgb += calculateLight(fragPos, n, v, diffuse, sunLight, 1.0);
-    fragColor.rgb += calculateLight(fragPos, n, v, diffuse, pointLight, 1.0);
-
-    float NoL = dot(n, normalize(spotLight.position - fragPos));
-    float occlusion = calculateOcclusion(fragPos, spotLightSpaceTM, NoL);
-    fragColor.rgb += calculateLight(fragPos, n, v, diffuse, spotLight, occlusion);
-
-    // ambient
-    fragColor.rgb += diffuse * ambientColor * ambientIntensity;
-
-    // gobo
-    /* vec4 fragPosLightSpace = spotLightSpaceTM * vec4(fragPos, 1.f);
-    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-    projCoords = projCoords * 0.5 + 0.5; // from [-1;1] to [0;1]
-    if (projCoords.x > 0 && projCoords.x < 1 &&
-        projCoords.y > 0 && projCoords.y < 1 &&
-        projCoords.z > 0 && projCoords.z < 1) {
-        vec3 goboLight = calculateLight(fragPos, n, v, diffuse, spotLight, 1.0);
-        goboLight *= texture(goboTex, projCoords.xy).rgb;
-        fragColor.rgb += goboLight;
-    } */
+    fragColor.rgb = calculateLight(fragPos, n, v, diffuse, light, occlusion);
 
     fragColor.a = props.x;
 }

@@ -10,14 +10,8 @@ layout (binding = 0, std140) uniform CameraData
 
 layout (binding = 1, std140) uniform LightData
 {
-    vec3 ambientColor;
-    float ambientIntensity;
-
-    Light sunLight;
-    Light pointLight;
-    Light spotLight;
-
-    mat4 spotLightSpaceTM;
+    Light light;
+    mat4 lightSpaceTM;
 };
 
 layout (binding = 2, std140) uniform PerObjectData

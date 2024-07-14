@@ -98,7 +98,11 @@ glm::vec2 calculateSpotLightScaleOffset(float innerConeAngle, float outerConeAng
     return scaleOffset;
 }
 
-GPULightData toGPULightData(const glm::vec3& pos, const glm::vec3& dir, const Light& light)
+GPULightData toGPULightData(
+    const glm::vec3& pos,
+    const glm::vec3& dir,
+    const Light& light,
+    bool castShadow)
 {
     return GPULightData{
         .position = pos,
@@ -108,6 +112,7 @@ GPULightData toGPULightData(const glm::vec3& pos, const glm::vec3& dir, const Li
         .color = glm::vec3(light.color),
         .type = light.type,
         .scaleOffset = light.scaleOffset,
+        .props = {(float)castShadow, 0.f},
     };
 }
 
@@ -196,11 +201,13 @@ void App::init()
         const auto lightDataSize = gfx::getAlignedSize(sizeof(LightData), uboAlignment);
         const auto perObjectDataElementSize =
             gfx::getAlignedSize(sizeof(PerObjectData), uboAlignment);
-        const auto bufSize =
-            cameraDataSize * MAX_CAMERAS_IN_UBO + lightDataSize + perObjectDataElementSize * 100;
+        const auto bufSize = cameraDataSize * MAX_CAMERAS_IN_UBO +
+                             lightDataSize * MAX_LIGHS_IN_UBO + perObjectDataElementSize * 100;
         sceneDataBuffer = gfx::allocateBuffer(bufSize, nullptr, "sceneData");
+
         sceneData.resize(bufSize);
         cameraDataUboOffsets.resize(MAX_CAMERAS_IN_UBO);
+        lightsUboOffsets.resize(MAX_LIGHS_IN_UBO);
     }
 
     // we still need an empty VAO even for vertex pulling
@@ -271,7 +278,7 @@ void App::init()
         sunLight = Light{
             .type = LIGHT_TYPE_DIRECTIONAL,
             .color = glm::vec4{0.65f, 0.4f, 0.3f, 1.f},
-            .intensity = 0.25f,
+            .intensity = 0.5f,
         };
 
         pointLightRotateOrigin = {0.f, 2.5f, 1.25f};
@@ -577,7 +584,7 @@ void App::render()
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, mainDrawFBO);
         glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
         // clear fbo buffers
-        GLfloat clearColor[4]{0.f, 0.f, 0.f, 0.f};
+        GLfloat clearColor[4]{0.f, 0.f, 0.f, 1.f};
         glClearNamedFramebufferfv(mainDrawFBO, GL_COLOR, 0, clearColor);
         GLfloat depthValue{1.f};
         glClearNamedFramebufferfv(mainDrawFBO, GL_DEPTH, 0, &depthValue);
@@ -596,33 +603,41 @@ void App::render()
         glProgramUniform1i(worldShader, SHADOW_MAP_TEXTURE_UNIFORM_LOC, 2);
         glBindTextureUnit(2, shadowMapDepthTexture);
 
+        glUseProgram(worldShader);
+
         glBindBufferRange(
             GL_UNIFORM_BUFFER,
             CAMERA_DATA_BINDING,
             sceneDataBuffer.buffer,
             cameraDataUboOffsets[0],
             sizeof(CameraData));
-        glBindBufferRange(
-            GL_UNIFORM_BUFFER,
-            LIGHT_DATA_BINDING,
-            sceneDataBuffer.buffer,
-            lightDataUboOffset,
-            sizeof(LightData));
+        glDepthFunc(GL_LEQUAL);
+        for (int i = 0; i < lightsUboOffsets.size(); ++i) {
+            glBindBufferRange(
+                GL_UNIFORM_BUFFER,
+                LIGHT_DATA_BINDING,
+                sceneDataBuffer.buffer,
+                lightsUboOffsets[i],
+                sizeof(LightData));
 
-        glUseProgram(worldShader);
+            {
+                GL_DEBUG_GROUP("Opaque pass");
+                gfx::setGlobalState(opaqueDrawState);
+                if (i != 0) {
+                    glEnable(GL_BLEND);
+                    glBlendFunc(GL_ONE, GL_ONE);
+                }
+                renderSceneObjects(opaqueDrawList);
+            }
 
-        {
-            GL_DEBUG_GROUP("Opaque pass");
-            gfx::setGlobalState(opaqueDrawState);
-            renderSceneObjects(opaqueDrawList);
-        }
-
-        {
-            GL_DEBUG_GROUP("Transparent pass");
-            gfx::setGlobalState(transparentDrawState);
-            renderSceneObjects(transparentDrawList);
+            {
+                GL_DEBUG_GROUP("Transparent pass");
+                gfx::setGlobalState(transparentDrawState);
+                renderSceneObjects(transparentDrawList);
+            }
         }
     }
+    glDepthFunc(GL_LESS);
 
     // restore default FBO
     // we'll draw everything into it
@@ -749,17 +764,19 @@ void App::uploadSceneData()
     };
     cameraDataUboOffsets.push_back(sceneData.append(cd, uboAlignment));
 
-    const auto ld = LightData{
-        // ambient
-        .ambientColor = glm::vec3{ambientColor},
-        .ambientIntensity = ambientIntensity,
-        // lights
-        .sunLight = toGPULightData({}, sunLightDir, sunLight),
-        .pointLight = toGPULightData(pointLightPosition, {}, pointLight),
-        .spotLight = toGPULightData(spotLightPosition, spotLightDir, spotLight),
-        .spotLightSpaceTM = spotLightCamera.getViewProj(),
-    };
-    lightDataUboOffset = sceneData.append(ld, uboAlignment);
+    lightsUboOffsets.clear();
+    lightsUboOffsets.push_back(sceneData.append(LightData{
+        .light = toGPULightData({}, sunLightDir, sunLight, false),
+    }));
+    lightsUboOffsets.push_back(sceneData.append(LightData{
+        .light = toGPULightData(pointLightPosition, {}, pointLight, false),
+    }));
+    if (!spotLightCulled) {
+        lightsUboOffsets.push_back(sceneData.append(LightData{
+            .light = toGPULightData(spotLightPosition, spotLightDir, spotLight, true),
+            .lightSpaceTM = spotLightCamera.getViewProj(),
+        }));
+    }
 
     // per object data
     for (auto& drawInfo : drawList) {
@@ -797,12 +814,6 @@ void App::renderShadowMap()
         sceneDataBuffer.buffer,
         cameraDataUboOffsets[1],
         sizeof(CameraData));
-    glBindBufferRange(
-        GL_UNIFORM_BUFFER,
-        LIGHT_DATA_BINDING,
-        sceneDataBuffer.buffer,
-        lightDataUboOffset,
-        sizeof(LightData));
 
     glUseProgram(depthOnlyShader);
 
@@ -838,8 +849,9 @@ void App::renderDebugObjects()
         }
     }
 
-    debugRenderer.addFrustumLines(spotLightCamera);
-    // debugRenderer.addFrustumLines(testCamera);
+    // debugRenderer.addFrustumLines(spotLightCamera);
+    debugRenderer.addFrustumLines(testCamera);
+
     if (drawAABBs) {
         debugRenderer.addAABBLines(spotLightAABB, glm::vec4{1.f, 0.f, 1.f, 1.f});
     }
