@@ -111,6 +111,44 @@ GPULightData toGPULightData(const glm::vec3& pos, const glm::vec3& dir, const Li
     };
 }
 
+bool shouldCullLight(
+    const Frustum& frustum,
+    const glm::vec3& lightPos,
+    const glm::vec3& lightDir,
+    const Light& light)
+{
+    if (light.type == LIGHT_TYPE_DIRECTIONAL) {
+        return false;
+    }
+
+    if (light.type == LIGHT_TYPE_POINT) {
+        Sphere s{.center = lightPos, .radius = light.range};
+        return !util::isInFrustum(frustum, s);
+    }
+
+    // Spot light culling
+    // This code is not optimized at all...
+    // Calculate camera (easy to find AABB points later!)
+    const auto fovX = glm::radians(60.f);
+    const auto zNear = 0.1f;
+    const auto zFar = light.range;
+    Camera spotLightCamera;
+    spotLightCamera.init(fovX, zNear, zFar, 1.f);
+    spotLightCamera.setPosition(lightPos);
+    if (std::abs(glm::dot(lightDir, math::GLOBAL_UP_DIR)) > 0.9999f) {
+        spotLightCamera.setHeading(glm::quatLookAt(-lightDir, math::GLOBAL_FORWARD_DIR));
+    } else {
+        spotLightCamera.setHeading(glm::quatLookAt(-lightDir, math::GLOBAL_UP_DIR));
+    }
+
+    // AABB
+    const auto spotLightPoints = util::calculateFrustumCornersWorldSpace(spotLightCamera);
+    std::vector<glm::vec3> points;
+    points.assign(spotLightPoints.begin(), spotLightPoints.end());
+    const auto aabb = util::calculateAABB(points);
+    return !util::isInFrustum(frustum, aabb);
+}
+
 } // end of anonymous namespace
 
 void App::start()
@@ -271,49 +309,57 @@ void App::init()
         sunLight = Light{
             .type = LIGHT_TYPE_DIRECTIONAL,
             .color = glm::vec4{0.65f, 0.4f, 0.3f, 1.f},
-            .intensity = 0.25f,
+            .intensity = 0.75f,
         };
 
-        pointLightRotateOrigin = {0.f, 2.5f, 1.25f};
-        pointLightRotateAngle = 0.f;
-        pointLightRotateRadius = 5.f;
-
-        pointLightPosition = {0.f, 2.5f, 1.25f};
-        pointLight = Light{
-            .type = LIGHT_TYPE_POINT,
-            .color = glm::vec4{0.1f, 0.75f, 0.3f, 1.f},
-            .intensity = 10.f,
-            .range = 5.f,
-        };
-
-        spotLightPosition = {-3.f, 3.5f, 2.f};
-        spotLightDir = glm::normalize(glm::vec3(1.f, -1.f, 1.f));
-
-        // spotLightPosition = {-3.f, 5.0f, 2.f};
-        // spotLightDir = glm::normalize(glm::vec3(0.f, -1.f, 0.f));
-
-        spotLight = Light{
-            .type = LIGHT_TYPE_SPOT,
-            .color = glm::vec4{1.f, 1.f, 1.f, 1.f},
-            .intensity = 1.f,
-            .range = 20.f,
-            .scaleOffset = calculateSpotLightScaleOffset(glm::radians(20.f), glm::radians(30.f)),
-        };
-
-        {
-            const auto fovX = glm::radians(60.f);
-            const auto zNear = 0.1f;
-            const auto zFar = spotLight.range;
-            spotLightCamera.init(fovX, zNear, zFar, 1.f);
-            spotLightCamera.setPosition(spotLightPosition);
-
-            if (std::abs(glm::dot(spotLightDir, math::GLOBAL_UP_DIR)) > 0.9999f) {
-                spotLightCamera.setHeading(
-                    glm::quatLookAt(-spotLightDir, math::GLOBAL_FORWARD_DIR));
-            } else {
-                spotLightCamera.setHeading(glm::quatLookAt(-spotLightDir, math::GLOBAL_UP_DIR));
-            }
+        std::uniform_real_distribution<float> posXZDist(-10.f, 10.f);
+        std::uniform_real_distribution<float> posYDist(0.25f, 5.0f);
+        std::uniform_real_distribution<float> rangeDist(4.f, 15.f);
+        std::uniform_real_distribution<float> colorDist(0.2f, 0.9f);
+        std::uniform_real_distribution<float> rotationRadiusDist(1.f, 10.f);
+        std::uniform_real_distribution<float> rotationSpeedDist(-1.5f, 1.5f);
+        for (std::size_t i = 0; i < 15; ++i) {
+            lights.push_back(CPULightData{
+                .light =
+                    Light{
+                        .type = LIGHT_TYPE_POINT,
+                        .color = {colorDist(rng), colorDist(rng), colorDist(rng), 1.f},
+                        .intensity = 2.f,
+                        .range = rangeDist(rng),
+                    },
+                .rotationOrigin = {posXZDist(rng), posYDist(rng), posXZDist(rng)},
+                .rotationRadius = rotationRadiusDist(rng),
+                .rotationSpeed = rotationSpeedDist(rng),
+            });
         }
+
+        lights.push_back(CPULightData{
+            .position = {-3.f, 3.5f, 2.f},
+            .direction = glm::normalize(glm::vec3(1.f, -1.f, 1.f)),
+            .light =
+                Light{
+                    .type = LIGHT_TYPE_SPOT,
+                    .color = glm::vec4{1.f, 1.f, 1.f, 1.f},
+                    .intensity = 1.f,
+                    .range = 20.f,
+                    .scaleOffset =
+                        calculateSpotLightScaleOffset(glm::radians(20.f), glm::radians(30.f)),
+                },
+        });
+
+        lights.push_back(CPULightData{
+            .position = {5.f, 5.0f, 5.f},
+            .direction = glm::normalize(glm::vec3(-1.f, -1.f, 1.f)),
+            .light =
+                Light{
+                    .type = LIGHT_TYPE_SPOT,
+                    .color = glm::vec4{1.f, 0.f, 1.f, 1.f},
+                    .intensity = 1.f,
+                    .range = 10.f,
+                    .scaleOffset =
+                        calculateSpotLightScaleOffset(glm::radians(20.f), glm::radians(30.f)),
+                },
+        });
     }
 
     frameStartState = gfx::GlobalState{
@@ -497,25 +543,41 @@ void App::update(float dt)
     // rotate objects
     static const auto rotationSpeed = glm::radians(45.f);
     for (auto& object : objects) {
-        // object.transform.heading *= glm::angleAxis(rotationSpeed * dt, glm::vec3{1.f, 1.f, 0.f});
+        // object.transform.heading *= glm::angleAxis(rotationSpeed * dt, glm::vec3{1.f, 1.f,
+        // 0.f});
     }
 
-    // animate point light
-    pointLightRotateAngle += 1.5f * dt;
-    pointLightPosition.x =
-        pointLightRotateOrigin.x + std::cos(pointLightRotateAngle) * pointLightRotateRadius;
-    pointLightPosition.z =
-        pointLightRotateOrigin.z + std::sin(pointLightRotateAngle) * pointLightRotateRadius;
+    // animate lights
+    for (auto& light : lights) {
+        if (light.rotationSpeed == 0.f) {
+            continue;
+        }
+        light.rotationAngle += light.rotationSpeed * dt;
+        light.position.x =
+            light.rotationOrigin.x + std::cos(light.rotationAngle) * light.rotationRadius;
+        light.position.y = light.rotationOrigin.y;
+        light.position.z =
+            light.rotationOrigin.z + std::sin(light.rotationAngle) * light.rotationRadius;
+    }
 
     ImGui::Begin("Debug");
+
     ImGui::Text("Total objects: %d", (int)objects.size());
     ImGui::Text("Drawn objects: %d", (int)(opaqueDrawList.size() + transparentDrawList.size()));
+
+    ImGui::Text("Total lights: %d", (int)lights.size() + 1); // + lights + dir light
+    int numLightsCulled = 0;
+    for (const auto& light : lights) {
+        if (light.culled) {
+            ++numLightsCulled;
+        }
+    }
+    ImGui::Text("Lights culled : %d", numLightsCulled);
+
     ImGui::Text("Drawn objects (shadow map): %d", (int)shadowMapOpaqueDrawList.size());
     ImGui::Checkbox("Use test camera for culling", &useTestCameraForCulling);
     ImGui::Checkbox("Draw AABBs", &drawAABBs);
     ImGui::Checkbox("Draw wireframes", &drawWireframes);
-    ImGui::Text("Point light culled: %d", (int)pointLightCulled);
-    ImGui::Text("Spot light culled: %d", (int)spotLightCulled);
     if (ImGui::Button("Update test camera")) {
         testCamera = camera;
     }
@@ -702,23 +764,14 @@ void App::generateDrawList()
     sortDrawList(opaqueDrawList, SortOrder::FrontToBack);
     sortDrawList(transparentDrawList, SortOrder::BackToFront);
 
-    { // recalc spotlight AABB
-        const auto spotLightPoints = util::calculateFrustumCornersWorldSpace(spotLightCamera);
-        std::vector<glm::vec3> points;
-        points.assign(spotLightPoints.begin(), spotLightPoints.end());
-        spotLightAABB = util::calculateAABB(points);
-    }
-
-    spotLightCulled = !util::isInFrustum(mainCameraFrustum, spotLightAABB);
-
-    { // check if point light should be culled
-        Sphere s{.center = pointLightPosition, .radius = pointLight.range};
-        pointLightCulled = !util::isInFrustum(mainCameraFrustum, s);
+    for (auto& light : lights) { // check if point light should be culled
+        light.culled =
+            shouldCullLight(mainCameraFrustum, light.position, light.direction, light.light);
     }
 
     // shadow map draw list
     shadowMapOpaqueDrawList.clear();
-    if (!spotLightCulled) {
+    /* if (!spotLightCulled) {
         const auto spotLightFrustum = util::createFrustumFromCamera(spotLightCamera);
         for (const auto& drawInfo : drawList) {
             const auto& object = objects[drawInfo.objectIdx];
@@ -726,7 +779,7 @@ void App::generateDrawList()
                 shadowMapOpaqueDrawList.push_back(drawInfo);
             }
         }
-    }
+    } */
 }
 
 void App::uploadSceneData()
@@ -748,22 +801,13 @@ void App::uploadSceneData()
     cameraDataUboOffsets.push_back(sceneData.append(cd, uboAlignment));
 
     // spot light cam
-    cd = CameraData{
+    /* cd = CameraData{
         .projection = spotLightCamera.getProjection(),
         .view = spotLightCamera.getView(),
         .cameraPos = glm::vec4{spotLightCamera.getPosition(), 0.f},
     };
     cameraDataUboOffsets.push_back(sceneData.append(cd, uboAlignment));
-
-    auto spl = spotLight; // copy
-    if (spotLightCulled) {
-        spl.color = glm::vec4{0.f, 0.f, 0.f, 1.f};
-    }
-
-    auto pl = pointLight; // copy
-    if (pointLightCulled) {
-        pl.color = glm::vec4{0.f, 0.f, 0.f, 1.f};
-    }
+    */
 
     auto ld = LightData{
         // ambient
@@ -771,10 +815,19 @@ void App::uploadSceneData()
         .ambientIntensity = ambientIntensity,
         // lights
         .sunLight = toGPULightData({}, sunLightDir, sunLight),
-        .spotLightSpaceTM = spotLightCamera.getViewProj(),
+        // .spotLightSpaceTM = spotLightCamera.getViewProj(),
     };
-    ld.lights[0] = toGPULightData(pointLightPosition, {}, pl);
-    ld.lights[1] = toGPULightData(spotLightPosition, spotLightDir, spl),
+
+    std::size_t currentLightIndex = 0;
+    for (const auto& light : lights) {
+        if (light.culled) {
+            continue;
+        }
+        ld.lights[currentLightIndex] = toGPULightData(light.position, light.direction, light.light);
+        ++currentLightIndex;
+        assert(currentLightIndex < MAX_LIGHTS_IN_UBO);
+    }
+    // ld.lights[currentLightIndex] = toGPULightData(spotLightPosition, spotLightDir, spl),
     lightDataUboOffset = sceneData.append(ld, uboAlignment);
 
     // per object data
@@ -855,10 +908,7 @@ void App::renderDebugObjects()
     }
 
     // debugRenderer.addFrustumLines(spotLightCamera);
-    debugRenderer.addFrustumLines(testCamera);
-    if (drawAABBs) {
-        debugRenderer.addAABBLines(spotLightAABB, glm::vec4{1.f, 0.f, 1.f, 1.f});
-    }
+    // debugRenderer.addFrustumLines(testCamera);
 
     { // world origin
         debugRenderer.addLine(
@@ -870,11 +920,15 @@ void App::renderDebugObjects()
     }
 
     // spot light
-    debugRenderer.addLine(
-        spotLightPosition,
-        spotLightPosition + spotLightDir * 1.f,
-        glm::vec4{1.f, 0.f, 0.f, 1.f},
-        glm::vec4{0.f, 1.f, 0.f, 1.f});
+    for (const auto& light : lights) {
+        if (light.light.type == LIGHT_TYPE_SPOT) {
+            debugRenderer.addLine(
+                light.position,
+                light.position + light.direction * 1.f,
+                glm::vec4{1.f, 0.f, 0.f, 1.f},
+                glm::vec4{0.f, 1.f, 0.f, 1.f});
+        }
+    }
 
     debugRenderer.render(camera);
 

@@ -48,7 +48,7 @@ void main()
     // fragColor.rgb += calculateLight(fragPos, n, v, diffuse, spotLight, occlusion);
 
     // other lights
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 18; i++) {
         fragColor.rgb += calculateLight(fragPos, n, v, diffuse, lights[i], 1.0);
     }
 

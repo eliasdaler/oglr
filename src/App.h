@@ -115,13 +115,9 @@ private:
     bool drawWireframes{false};
 
     float timer{0.f};
-    float timeToSpawnNewObject{1000.25f};
+    float timeToSpawnNewObject{0.25f};
     std::vector<std::size_t> randomSpawnMeshes;
     std::vector<std::size_t> randomSpawnTextures;
-
-    float pointLightRotateAngle{0.f};
-    float pointLightRotateRadius{1.f};
-    glm::vec3 pointLightRotateOrigin{};
 
     struct CameraData {
         glm::mat4 projection;
@@ -157,17 +153,20 @@ private:
     glm::vec3 sunLightDir;
     Light sunLight;
 
-    glm::vec3 pointLightPosition;
-    Light pointLight;
-    bool pointLightCulled{false};
+    struct CPULightData {
+        glm::vec3 position;
+        glm::vec3 direction;
+        Light light;
 
-    glm::vec3 spotLightPosition;
-    glm::vec3 spotLightDir;
-    Light spotLight;
+        // animation
+        glm::vec3 rotationOrigin{};
+        float rotationAngle{0.f};
+        float rotationRadius{1.f};
+        float rotationSpeed{0.f};
 
-    Camera spotLightCamera;
-    bool spotLightCulled{false};
-    AABB spotLightAABB;
+        bool culled{false};
+    };
+    std::vector<CPULightData> lights;
 
     std::vector<DrawInfo> drawList;
     std::vector<DrawInfo> opaqueDrawList;
