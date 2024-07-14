@@ -749,6 +749,11 @@ void App::uploadSceneData()
     };
     cameraDataUboOffsets.push_back(sceneData.append(cd, uboAlignment));
 
+    auto sp = spotLight; // copy
+    if (spotLightCulled) {
+        sp.color = glm::vec4{0.f, 0.f, 0.f, 1.f};
+    }
+
     const auto ld = LightData{
         // ambient
         .ambientColor = glm::vec3{ambientColor},
@@ -756,7 +761,7 @@ void App::uploadSceneData()
         // lights
         .sunLight = toGPULightData({}, sunLightDir, sunLight),
         .pointLight = toGPULightData(pointLightPosition, {}, pointLight),
-        .spotLight = toGPULightData(spotLightPosition, spotLightDir, spotLight),
+        .spotLight = toGPULightData(spotLightPosition, spotLightDir, sp),
         .spotLightSpaceTM = spotLightCamera.getViewProj(),
     };
     lightDataUboOffset = sceneData.append(ld, uboAlignment);
