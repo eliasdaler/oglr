@@ -93,6 +93,7 @@ private:
     std::uniform_int_distribution<int> dist{1, 10};
 
     std::uint32_t worldShader{};
+    std::uint32_t depthOnlyShader{};
     std::uint32_t solidColorShader{};
     std::uint32_t postFXShader{};
     std::uint32_t vao{}; // empty vao

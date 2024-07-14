@@ -55,4 +55,5 @@ vec3 calculateLight(vec3 fragPos, vec3 n, vec3 v, vec3 diffuse, Light light, flo
     return (fr * light.color) * (light.intensity * atten * NoL * occlusion);
 }
 
+
 #endif // LIGHTING_GLSL

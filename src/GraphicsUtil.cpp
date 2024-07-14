@@ -42,9 +42,12 @@ GLuint loadShaderProgram(
         return 0;
     }
 
-    const auto fragShader = gfx::compileShader(fragShaderPath, GL_FRAGMENT_SHADER);
-    if (fragShader == 0) {
-        return 0;
+    auto fragShader = 0;
+    if (!fragShaderPath.empty()) {
+        fragShader = gfx::compileShader(fragShaderPath, GL_FRAGMENT_SHADER);
+        if (fragShader == 0) {
+            return 0;
+        }
     }
 
     GLuint shaderProgram = glCreateProgram();
@@ -52,7 +55,9 @@ GLuint loadShaderProgram(
 
     // link
     glAttachShader(shaderProgram, vertexShader);
-    glAttachShader(shaderProgram, fragShader);
+    if (fragShader) {
+        glAttachShader(shaderProgram, fragShader);
+    }
     glLinkProgram(shaderProgram);
 
     // check for linking errors

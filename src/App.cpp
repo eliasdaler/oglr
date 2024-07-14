@@ -179,6 +179,9 @@ void App::init()
             loadShaderProgram("assets/shaders/basic.vert", "assets/shaders/basic.frag", "world");
         assert(worldShader);
 
+        depthOnlyShader = gfx::loadShaderProgram("assets/shaders/basic.vert", "", "depth_only");
+        assert(depthOnlyShader);
+
         solidColorShader = gfx::loadShaderProgram(
             "assets/shaders/basic.vert", "assets/shaders/solid_color.frag", "world");
         assert(solidColorShader);
@@ -268,7 +271,7 @@ void App::init()
         sunLight = Light{
             .type = LIGHT_TYPE_DIRECTIONAL,
             .color = glm::vec4{0.65f, 0.4f, 0.3f, 1.f},
-            .intensity = 1.25f,
+            .intensity = 0.25f,
         };
 
         pointLightRotateOrigin = {0.f, 2.5f, 1.25f};
@@ -402,6 +405,7 @@ void App::cleanup()
 
     glDeleteProgram(postFXShader);
     glDeleteProgram(solidColorShader);
+    glDeleteProgram(depthOnlyShader);
     glDeleteProgram(worldShader);
 
     glDeleteFramebuffers(1, &mainDrawFBO);
@@ -800,7 +804,7 @@ void App::renderShadowMap()
         lightDataUboOffset,
         sizeof(LightData));
 
-    glUseProgram(worldShader);
+    glUseProgram(depthOnlyShader);
 
     renderSceneObjects(shadowMapOpaqueDrawList);
 }

@@ -40,7 +40,8 @@ void main()
     vec3 diffuse = texture(tex, inUV).rgb;
 
     fragColor.rgb = vec3(0.f, 0.f, 0.f);
-    fragColor.rgb = calculateLight(fragPos, n, v, diffuse, sunLight, 0.0);
+
+    fragColor.rgb += calculateLight(fragPos, n, v, diffuse, sunLight, 1.0);
     fragColor.rgb += calculateLight(fragPos, n, v, diffuse, pointLight, 1.0);
 
     float NoL = dot(n, normalize(spotLight.position - fragPos));
