@@ -654,8 +654,6 @@ void App::render()
 
 void App::generateDrawList()
 {
-    const auto frustum = getFrustum();
-
     drawList.clear();
 
     for (std::size_t i = 0; i < objects.size(); ++i) {
@@ -681,6 +679,7 @@ void App::generateDrawList()
     // separate into opaque and transparent lists
     opaqueDrawList.clear();
     transparentDrawList.clear();
+    const auto frustum = getFrustum();
     for (const auto& drawInfo : drawList) {
         const auto& object = objects[drawInfo.objectIdx];
         if (!util::isInFrustum(frustum, object.worldAABB)) {
