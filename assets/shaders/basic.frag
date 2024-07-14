@@ -13,17 +13,22 @@ layout (location = 1) uniform sampler2D tex;
 layout (location = 2) uniform sampler2D goboTex;
 layout (location = 3) uniform sampler2D shadowMapTex;
 
-float calculateOcclusion(vec3 fragPos, mat4 lightSpaceTM) {
+float calculateOcclusion(vec3 fragPos, mat4 lightSpaceTM, float NoL) {
     vec4 fragPosLightSpace = lightSpaceTM * vec4(fragPos, 1.f);
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+
     projCoords = projCoords * 0.5 + 0.5; // from [-1;1] to [0;1]
+
     if (projCoords.z >= 1) {
         return 1.0;
     }
 
+    float bias = 0.001 * tan(acos(NoL));
+    bias = clamp(bias, 0.0, 0.1);
+
     float currentDepth = projCoords.z;
     float closestDepth = texture(shadowMapTex, projCoords.xy).r;
-    return currentDepth > closestDepth ? 0.0 : 1.0;
+    return currentDepth - bias > closestDepth ? 0.0 : 1.0;
 }
 
 void main()
@@ -33,12 +38,13 @@ void main()
     vec3 v = normalize(cameraPos.xyz - fragPos);
     vec3 diffuse = texture(tex, inUV).rgb;
 
-    fragColor.rgb = calculateLight(fragPos, n, v, diffuse, sunLight, 1.0);
+    fragColor.rgb = vec3(0.f, 0.f, 0.f);
+    fragColor.rgb = calculateLight(fragPos, n, v, diffuse, sunLight, 0.0);
     fragColor.rgb += calculateLight(fragPos, n, v, diffuse, pointLight, 1.0);
 
-    float occlusion = calculateOcclusion(fragPos, spotLightSpaceTM);
+    float NoL = dot(n, normalize(spotLight.position - fragPos));
+    float occlusion = calculateOcclusion(fragPos, spotLightSpaceTM, NoL);
     fragColor.rgb += calculateLight(fragPos, n, v, diffuse, spotLight, occlusion);
-    // fragColor.rgb += calculateLight(fragPos, n, v, diffuse, spotLight, 1.0);
 
     // ambient
     fragColor.rgb += diffuse * ambientColor * ambientIntensity;
@@ -50,7 +56,7 @@ void main()
     if (projCoords.x > 0 && projCoords.x < 1 &&
         projCoords.y > 0 && projCoords.y < 1 &&
         projCoords.z > 0 && projCoords.z < 1) {
-        vec3 goboLight = calculateLight(fragPos, n, v, diffuse, spotLight);
+        vec3 goboLight = calculateLight(fragPos, n, v, diffuse, spotLight, 1.0);
         goboLight *= texture(goboTex, projCoords.xy).rgb;
         fragColor.rgb += goboLight;
     } */

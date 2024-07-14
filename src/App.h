@@ -180,7 +180,7 @@ private:
 
     std::uint32_t shadowMapFBO;
     std::uint32_t shadowMapDepthTexture;
-    int shadowMapSize{1024};
+    int shadowMapSize{2048};
 
     DebugRenderer debugRenderer;
 };

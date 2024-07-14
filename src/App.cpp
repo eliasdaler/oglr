@@ -262,7 +262,7 @@ void App::init()
 
     { // init lights
         ambientColor = glm::vec3{0.3f, 0.65f, 0.8f};
-        ambientIntensity = 0.2f;
+        ambientIntensity = 0.1f;
 
         sunLightDir = glm::normalize(glm::vec3(1.f, -1.f, 1.f));
         sunLight = Light{
@@ -284,7 +284,6 @@ void App::init()
         };
 
         spotLightPosition = {-3.f, 3.5f, 2.f};
-        spotLightPosition = {-3.f, 4.5f, 2.f};
         spotLightDir = glm::normalize(glm::vec3(1.f, -1.f, 1.f));
 
         // spotLightPosition = {-3.f, 5.0f, 2.f};
@@ -293,9 +292,9 @@ void App::init()
         spotLight = Light{
             .type = LIGHT_TYPE_SPOT,
             .color = glm::vec4{1.f, 1.f, 1.f, 1.f},
-            .intensity = 4.f,
+            .intensity = 1.f,
             .range = 20.f,
-            .scaleOffset = calculateSpotLightScaleOffset(0.33, 0.39),
+            .scaleOffset = calculateSpotLightScaleOffset(glm::radians(20.f), glm::radians(30.f)),
         };
 
         {
@@ -303,7 +302,6 @@ void App::init()
             const auto zNear = 0.1f;
             const auto zFar = spotLight.range;
             spotLightCamera.init(fovX, zNear, zFar, 1.f);
-            spotLightCamera.setPosition({0.f, 2.5f, -10.f});
             spotLightCamera.setPosition(spotLightPosition);
 
             if (std::abs(glm::dot(spotLightDir, math::GLOBAL_UP_DIR)) > 0.9999f) {
@@ -380,8 +378,11 @@ void App::init()
         glCreateTextures(GL_TEXTURE_2D, 1, &shadowMapDepthTexture);
         glTextureStorage2D(
             shadowMapDepthTexture, 1, GL_DEPTH_COMPONENT32F, shadowMapSize, shadowMapSize);
-        glTextureParameteri(
-            shadowMapDepthTexture, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+
+        float borderColor[] = {1.0f, 1.0f, 1.0f, 1.0f};
+        glTextureParameteri(shadowMapDepthTexture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTextureParameteri(shadowMapDepthTexture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
 
         // Attach buffers
         glNamedFramebufferTexture(shadowMapFBO, GL_DEPTH_ATTACHMENT, shadowMapDepthTexture, 0);
@@ -562,7 +563,8 @@ void App::render()
     {
         GL_DEBUG_GROUP("Shadow pass");
         gfx::setGlobalState(opaqueDrawState);
-        glBindFramebuffer(GL_FRAMEBUFFER, shadowMapFBO);
+        glViewport(0, 0, shadowMapSize, shadowMapSize);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shadowMapFBO);
         // clear
         GLfloat depthValue{1.f};
         glClearNamedFramebufferfv(shadowMapFBO, GL_DEPTH, 0, &depthValue);
@@ -587,7 +589,8 @@ void App::render()
 
     {
         gfx::setGlobalState(frameStartState);
-        glBindFramebuffer(GL_FRAMEBUFFER, mainDrawFBO);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, mainDrawFBO);
+        glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
         // clear fbo buffers
         GLfloat clearColor[4]{0.f, 0.f, 0.f, 0.f};
         glClearNamedFramebufferfv(mainDrawFBO, GL_COLOR, 0, clearColor);
@@ -638,7 +641,7 @@ void App::render()
 
     // restore default FBO
     // we'll draw everything into it
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 
     {
         GL_DEBUG_GROUP("Post FX");
