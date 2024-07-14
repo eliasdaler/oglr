@@ -283,7 +283,7 @@ void App::init()
             .type = LIGHT_TYPE_POINT,
             .color = glm::vec4{0.1f, 0.75f, 0.3f, 1.f},
             .intensity = 10.f,
-            .range = 20.f,
+            .range = 5.f,
         };
 
         spotLightPosition = {-3.f, 3.5f, 2.f};
@@ -514,7 +514,8 @@ void App::update(float dt)
     ImGui::Checkbox("Use test camera for culling", &useTestCameraForCulling);
     ImGui::Checkbox("Draw AABBs", &drawAABBs);
     ImGui::Checkbox("Draw wireframes", &drawWireframes);
-    ImGui::Text("Spotlight culled: %d", (int)spotLightCulled);
+    ImGui::Text("Point light culled: %d", (int)pointLightCulled);
+    ImGui::Text("Spot light culled: %d", (int)spotLightCulled);
     if (ImGui::Button("Update test camera")) {
         testCamera = camera;
     }
@@ -710,6 +711,11 @@ void App::generateDrawList()
 
     spotLightCulled = !util::isInFrustum(mainCameraFrustum, spotLightAABB);
 
+    { // check if point light should be culled
+        Sphere s{.center = pointLightPosition, .radius = pointLight.range};
+        pointLightCulled = !util::isInFrustum(mainCameraFrustum, s);
+    }
+
     // shadow map draw list
     shadowMapOpaqueDrawList.clear();
     if (!spotLightCulled) {
@@ -749,9 +755,14 @@ void App::uploadSceneData()
     };
     cameraDataUboOffsets.push_back(sceneData.append(cd, uboAlignment));
 
-    auto sp = spotLight; // copy
+    auto spl = spotLight; // copy
     if (spotLightCulled) {
-        sp.color = glm::vec4{0.f, 0.f, 0.f, 1.f};
+        spl.color = glm::vec4{0.f, 0.f, 0.f, 1.f};
+    }
+
+    auto pl = pointLight; // copy
+    if (pointLightCulled) {
+        pl.color = glm::vec4{0.f, 0.f, 0.f, 1.f};
     }
 
     const auto ld = LightData{
@@ -760,8 +771,8 @@ void App::uploadSceneData()
         .ambientIntensity = ambientIntensity,
         // lights
         .sunLight = toGPULightData({}, sunLightDir, sunLight),
-        .pointLight = toGPULightData(pointLightPosition, {}, pointLight),
-        .spotLight = toGPULightData(spotLightPosition, spotLightDir, sp),
+        .pointLight = toGPULightData(pointLightPosition, {}, pl),
+        .spotLight = toGPULightData(spotLightPosition, spotLightDir, spl),
         .spotLightSpaceTM = spotLightCamera.getViewProj(),
     };
     lightDataUboOffset = sceneData.append(ld, uboAlignment);
@@ -843,8 +854,8 @@ void App::renderDebugObjects()
         }
     }
 
-    debugRenderer.addFrustumLines(spotLightCamera);
-    // debugRenderer.addFrustumLines(testCamera);
+    // debugRenderer.addFrustumLines(spotLightCamera);
+    debugRenderer.addFrustumLines(testCamera);
     if (drawAABBs) {
         debugRenderer.addAABBLines(spotLightAABB, glm::vec4{1.f, 0.f, 1.f, 1.f});
     }

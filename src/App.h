@@ -159,6 +159,7 @@ private:
 
     glm::vec3 pointLightPosition;
     Light pointLight;
+    bool pointLightCulled{false};
 
     glm::vec3 spotLightPosition;
     glm::vec3 spotLightDir;
