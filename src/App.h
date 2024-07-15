@@ -96,7 +96,8 @@ private:
 
     void generateDrawList();
     void uploadSceneData();
-    void renderShadowMap(const CPULightData& lightData);
+    void renderSpotLightShadowMap(const CPULightData& lightData);
+    void renderPointLightShadowMap(const CPULightData& lightData);
     void renderSceneObjects(const std::vector<DrawInfo>& drawList);
     void renderDebugObjects();
     void renderWireframes(const std::vector<DrawInfo>& drawList);
@@ -130,6 +131,7 @@ private:
     std::mt19937 rng;
 
     std::uint32_t worldShader{};
+    std::uint32_t shadowCubeShader{};
     std::uint32_t depthOnlyShader{};
     std::uint32_t solidColorShader{};
     std::uint32_t postFXShader{};
@@ -190,6 +192,7 @@ private:
     Light sunLight;
 
     std::vector<CPULightData> lights;
+    std::array<Camera, 6> pointLightShadowMapCameras;
 
     std::vector<DrawInfo> drawList;
     std::vector<DrawInfo> opaqueDrawList;
@@ -210,6 +213,11 @@ private:
     std::uint32_t shadowMapFBO;
     std::uint32_t shadowMapDepthTexture;
     int shadowMapSize{2048};
+
+    int testFrustumToDrawIdx{0};
+    Camera testFrustumToDraw;
+    glm::vec3 testFragPos;
+    glm::vec3 testLightPos;
 
     DebugRenderer debugRenderer;
 };

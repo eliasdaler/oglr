@@ -206,6 +206,32 @@ std::array<int, MAX_AFFECTING_LIGHTS> getClosestLights(
     return lightIdx;
 }
 
+std::pair<glm::vec2, int> sampleCube(const glm::vec3& v)
+{
+    // https://www.gamedev.net/forums/topic/687535-implementing-a-cube-map-lookup-function/5337472/
+    // had to flip x/y axis for OpenGL, though
+    glm::vec3 vAbs = glm::abs(v);
+    float ma;
+    glm::vec2 uv;
+    int faceIndex;
+    if (vAbs.z >= vAbs.x && vAbs.z >= vAbs.y) {
+        faceIndex = v.z < 0.0 ? 5.0 : 4.0;
+        ma = 0.5 / vAbs.z;
+        uv = glm::vec2(v.z < 0.0 ? -v.x : v.x, -v.y);
+    } else if (vAbs.y >= vAbs.x) {
+        faceIndex = v.y < 0.0 ? 3.0 : 2.0;
+        ma = 0.5 / vAbs.y;
+        uv = glm::vec2(v.x, v.y < 0.0 ? -v.z : v.z);
+    } else {
+        faceIndex = v.x < 0.0 ? 1.0 : 0.0;
+        ma = 0.5 / vAbs.x;
+        uv = glm::vec2(v.x < 0.0 ? v.z : -v.z, -v.y);
+    }
+
+    uv = uv * ma + glm::vec2(0.5f);
+    return {glm::vec2{1.f} - uv, faceIndex};
+}
+
 } // end of anonymous namespace
 
 void App::start()
@@ -218,7 +244,7 @@ void App::start()
 void App::init()
 {
     rng = std::mt19937{randomDevice()};
-    rng.seed(42);
+    rng.seed(4);
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) < 0) {
         printf("SDL could not initialize. SDL Error: %s\n", SDL_GetError());
@@ -274,6 +300,10 @@ void App::init()
         worldShader = gfx::
             loadShaderProgram("assets/shaders/basic.vert", "assets/shaders/basic.frag", "world");
         assert(worldShader);
+
+        shadowCubeShader = gfx::loadShaderProgram(
+            "assets/shaders/basic.vert", "assets/shaders/shadow_cube.frag", "world");
+        assert(shadowCubeShader);
 
         depthOnlyShader = gfx::loadShaderProgram("assets/shaders/basic.vert", "", "depth_only");
         assert(depthOnlyShader);
@@ -354,6 +384,9 @@ void App::init()
     spawnObject({0.f, 1.f, 2.5f}, cubeMeshIdx, 1, 1.f);
     spawnObject({0.f, 1.f, 5.f}, cubeMeshIdx, 0, 1.f);
     spawnObject({0.f, 1.f, 7.5f}, cubeMeshIdx, 1, 1.f);
+
+    spawnObject({6.f, 1.f, 2.5f}, cubeMeshIdx, 1, 1.f);
+    spawnObject({6.f, 1.f, 5.f}, cubeMeshIdx, 0, 1.f);
     // star
     // spawnObject({0.f, 0.1f, 5.0f}, 1, 0, 1.f);
     // spawnObject({0.f, 0.3f, 7.5f}, 1, 1, 1.f);
@@ -366,24 +399,24 @@ void App::init()
         sunLight = Light{
             .type = LIGHT_TYPE_DIRECTIONAL,
             .color = glm::vec4{0.65f, 0.4f, 0.3f, 1.f},
-            .intensity = 0.75f,
+            .intensity = 0.15f,
         };
 
         // generate some random floating point lights
         std::uniform_real_distribution<float> posXZDist(-10.f, 10.f);
         std::uniform_real_distribution<float> posYDist(1.5f, 5.0f);
-        std::uniform_real_distribution<float> rangeDist(4.f, 15.f);
+        std::uniform_real_distribution<float> rangeDist(20.f, 20.f);
         std::uniform_real_distribution<float> colorDist(0.2f, 0.9f);
         std::uniform_real_distribution<float> rotationRadiusDist(1.f, 10.f);
         std::uniform_real_distribution<float> rotationSpeedDist(-1.5f, 1.5f);
-        for (std::size_t i = 0; i < 30; ++i) {
+        for (std::size_t i = 0; i < 1; ++i) {
             lights.push_back(CPULightData{
                 .position = {posXZDist(rng), posYDist(rng), posXZDist(rng)},
                 .light =
                     Light{
                         .type = LIGHT_TYPE_POINT,
                         .color = {colorDist(rng), colorDist(rng), colorDist(rng), 1.f},
-                        .intensity = 2.f,
+                        .intensity = 10.f,
                         .range = rangeDist(rng),
                     },
                 .rotationOrigin = {posXZDist(rng), posYDist(rng), posXZDist(rng)},
@@ -392,7 +425,10 @@ void App::init()
             });
         }
 
-        addSpotLight(
+        lights[0].position = glm::vec3{3.f, 3.5f, 2.f};
+        lights[0].castsShadow = true;
+
+        /* addSpotLight(
             {-3.f, 3.5f, 2.f}, // pos
             glm::normalize(glm::vec3(1.f, -1.f, 1.f)), // dir
             Light{
@@ -418,7 +454,31 @@ void App::init()
                 .outerConeAngle = glm::radians(30.f),
             },
             true // cast shadow
-        );
+        ); */
+
+        { // int point light cameras
+          // <front, up>
+            const auto aspect = 1.f; // shadow maps are square
+            const auto nearPlane = 0.1f;
+            const auto pointLightMaxRange = 20.f;
+            const auto farPlane = pointLightMaxRange;
+
+            static const std::array<std::pair<glm::vec3, glm::vec3>, 6> shadowDirections{{
+                {{1.0, 0.0, 0.0}, {0.0, -1.0, 0.0}}, // posx
+                {{-1.0, 0.0, 0.0}, {0.0, -1.0, 0.0}}, // negx
+                {{0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}}, // posy
+                {{0.0, -1.0, 0.0}, {0.0, 0.0, -1.0}}, // negy
+                {{0.0, 0.0, 1.0}, {0.0, -1.0, 0.0}}, // posz
+                {{0.0, 0.0, -1.0}, {0.0, -1.0, 0.0}}, // negz
+            }};
+
+            for (int i = 0; i < 6; ++i) {
+                auto& camera = pointLightShadowMapCameras[i];
+                camera.setHeading(
+                    glm::quatLookAt(-shadowDirections[i].first, shadowDirections[i].second));
+                camera.init(glm::radians(90.0f), nearPlane, farPlane, aspect);
+            }
+        }
     }
 
     frameStartState = gfx::GlobalState{
@@ -501,6 +561,11 @@ void App::init()
         glNamedFramebufferTextureLayer(
             shadowMapFBO, GL_DEPTH_ATTACHMENT, shadowMapDepthTexture, 0, 0);
     }
+
+    testFragPos = glm::vec3{1.f, 0.517, 0.28627};
+
+    testFragPos = glm::vec3{0.f, 0.f, 1.f};
+    testLightPos = glm::vec3{};
 }
 
 void App::cleanup()
@@ -517,6 +582,7 @@ void App::cleanup()
     glDeleteProgram(postFXShader);
     glDeleteProgram(solidColorShader);
     glDeleteProgram(depthOnlyShader);
+    glDeleteProgram(shadowCubeShader);
     glDeleteProgram(worldShader);
 
     glDeleteFramebuffers(1, &mainDrawFBO);
@@ -613,7 +679,7 @@ void App::update(float dt)
     }
 
     // animate lights
-    for (auto& light : lights) {
+    /* for (auto& light : lights) {
         if (light.rotationSpeed == 0.f) {
             continue;
         }
@@ -623,9 +689,20 @@ void App::update(float dt)
         light.position.y = light.rotationOrigin.y;
         light.position.z =
             light.rotationOrigin.z + std::sin(light.rotationAngle) * light.rotationRadius;
-    }
+    } */
 
     ImGui::Begin("Debug");
+
+    ImGui::InputInt("test frustum", &testFrustumToDrawIdx);
+    testFrustumToDrawIdx = std::clamp(testFrustumToDrawIdx, 0, 5);
+
+    ImGui::DragFloat3("fragPos", glm::value_ptr(testFragPos));
+
+    {
+        const auto v = glm::normalize(testFragPos - testLightPos);
+        auto [uv, faceIndex] = sampleCube(v);
+        ImGui::Text("uv = (%.2f, %.2f), index = %d", uv.x, uv.y, faceIndex);
+    }
 
     ImGui::Text("Total objects: %d", (int)objects.size());
     ImGui::Text("Drawn objects: %d", (int)(opaqueDrawList.size() + transparentDrawList.size()));
@@ -699,10 +776,15 @@ void App::render()
         gfx::setGlobalState(opaqueDrawState);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shadowMapFBO);
         glViewport(0, 0, shadowMapSize, shadowMapSize);
-        glUseProgram(depthOnlyShader);
         for (const auto& light : lights) {
             if (light.shadowMapDrawListIdx != MAX_SHADOW_CASTING_LIGHTS) {
-                renderShadowMap(light);
+                if (light.light.type == LIGHT_TYPE_SPOT) {
+                    glUseProgram(depthOnlyShader);
+                    renderSpotLightShadowMap(light);
+                } else if (light.light.type == LIGHT_TYPE_POINT) {
+                    glUseProgram(shadowCubeShader);
+                    renderPointLightShadowMap(light);
+                }
             }
         }
     }
@@ -859,16 +941,36 @@ void App::generateDrawList()
             continue;
         }
 
-        const auto spotLightFrustum =
-            util::createFrustumFromVPMatrix(light.lightSpaceProj * light.lightSpaceView);
-        light.shadowMapDrawListIdx = shadowMapDrawListIdx;
-        for (const auto& drawInfo : drawList) {
-            const auto& object = objects[drawInfo.objectIdx];
-            if (object.alpha == 1.f && util::isInFrustum(spotLightFrustum, object.worldAABB)) {
-                shadowMapOpaqueDrawLists[shadowMapDrawListIdx].push_back(drawInfo);
+        if (light.light.type == LIGHT_TYPE_SPOT) {
+            const auto spotLightFrustum =
+                util::createFrustumFromVPMatrix(light.lightSpaceProj * light.lightSpaceView);
+            light.shadowMapDrawListIdx = shadowMapDrawListIdx;
+            for (const auto& drawInfo : drawList) {
+                const auto& object = objects[drawInfo.objectIdx];
+                if (object.alpha == 1.f && util::isInFrustum(spotLightFrustum, object.worldAABB)) {
+                    shadowMapOpaqueDrawLists[shadowMapDrawListIdx].push_back(drawInfo);
+                }
+            }
+            ++shadowMapDrawListIdx;
+        } else {
+            light.shadowMapDrawListIdx = shadowMapDrawListIdx;
+            for (int i = 0; i < 6; ++i) {
+                auto cam = pointLightShadowMapCameras[i];
+                cam.setPosition(light.position);
+                const auto frustum = util::createFrustumFromVPMatrix(cam.getViewProj());
+                if (i == testFrustumToDrawIdx) {
+                    testFrustumToDraw = cam;
+                }
+                for (const auto& drawInfo : drawList) {
+                    const auto& object = objects[drawInfo.objectIdx];
+                    shadowMapOpaqueDrawLists[shadowMapDrawListIdx].push_back(drawInfo);
+                    /* if (object.alpha == 1.f && util::isInFrustum(frustum, object.worldAABB)) {
+                        shadowMapOpaqueDrawLists[shadowMapDrawListIdx].push_back(drawInfo);
+                    } */
+                }
+                ++shadowMapDrawListIdx;
             }
         }
-        ++shadowMapDrawListIdx;
     }
 }
 
@@ -901,13 +1003,30 @@ void App::uploadSceneData()
             continue;
         }
 
-        const auto cd = CameraData{
-            .projection = light.lightSpaceProj,
-            .view = light.lightSpaceView,
-            .cameraPos = glm::vec4{light.position, 0.f},
-        };
-        light.camerasUboOffset = sceneData.append(cd, uboAlignment);
-        ++currentCameraIdxUbo;
+        if (light.light.type == LIGHT_TYPE_SPOT) {
+            const auto cd = CameraData{
+                .projection = light.lightSpaceProj,
+                .view = light.lightSpaceView,
+                .cameraPos = glm::vec4{light.position, 0.f},
+            };
+            light.camerasUboOffset = sceneData.append(cd, uboAlignment);
+            ++currentCameraIdxUbo;
+        } else if (light.light.type == LIGHT_TYPE_POINT) {
+            for (int i = 0; i < 6; ++i) {
+                auto cam = pointLightShadowMapCameras[i];
+                cam.setPosition(light.position);
+                const auto cd = CameraData{
+                    .projection = cam.getProjection(),
+                    .view = cam.getView(),
+                    .cameraPos = glm::vec4{cam.getPosition(), 0.f},
+                };
+                const auto offset = sceneData.append(cd, uboAlignment);
+                if (i == 0) {
+                    light.camerasUboOffset = offset;
+                }
+                ++currentCameraIdxUbo;
+            }
+        }
     }
 
     auto ld = LightData{
@@ -976,7 +1095,7 @@ void App::uploadSceneData()
         sceneDataBuffer.buffer, 0, sceneData.getData().size(), sceneData.getData().data());
 }
 
-void App::renderShadowMap(const CPULightData& lightData)
+void App::renderSpotLightShadowMap(const CPULightData& lightData)
 {
     assert(!lightData.culled);
     assert(lightData.castsShadow);
@@ -1002,6 +1121,36 @@ void App::renderShadowMap(const CPULightData& lightData)
         sizeof(CameraData));
 
     renderSceneObjects(shadowMapOpaqueDrawLists[lightData.shadowMapDrawListIdx]);
+}
+
+void App::renderPointLightShadowMap(const CPULightData& lightData)
+{
+    assert(!lightData.culled);
+    assert(lightData.castsShadow);
+    assert(lightData.shadowMapDrawListIdx != MAX_SHADOW_CASTING_LIGHTS);
+
+    for (int i = 0; i < 6; ++i) {
+        glNamedFramebufferTextureLayer(
+            shadowMapFBO,
+            GL_DEPTH_ATTACHMENT,
+            shadowMapDepthTexture,
+            0,
+            lightData.shadowMapDrawListIdx + i);
+
+        // clear
+        GLfloat depthValue{1.f};
+        glClearNamedFramebufferfv(shadowMapFBO, GL_DEPTH, 0, &depthValue);
+
+        const auto alignCameraDataSize = gfx::getAlignedSize(sizeof(CameraData), uboAlignment);
+        glBindBufferRange(
+            GL_UNIFORM_BUFFER,
+            CAMERA_DATA_BINDING,
+            sceneDataBuffer.buffer,
+            lightData.camerasUboOffset + i * alignCameraDataSize,
+            sizeof(CameraData));
+
+        renderSceneObjects(shadowMapOpaqueDrawLists[lightData.shadowMapDrawListIdx]);
+    }
 }
 
 void App::renderSceneObjects(const std::vector<DrawInfo>& drawList)
@@ -1035,7 +1184,32 @@ void App::renderDebugObjects()
 
     // debugRenderer.addFrustumLines(spotLightCamera);
     // debugRenderer.addFrustumLines(testCamera);
+    // debugRenderer.addFrustumLines(testFrustumToDraw);
 
+    {
+        // const auto lightPos = lights[0].position;
+        // debugRenderer.addLine(lightPos, testFragPos, glm::vec4{0.f, 0.f, 1.f, 1.f});
+
+        /* const auto v = glm::normalize(testFragPos - testLightPos);
+        debugRenderer.addLine({}, v * 5.f, glm::vec4{1.f, 0.f, 1.f, 1.f});
+        debugRenderer.addLine({}, v * 1.f, glm::vec4{0.f, 1.f, 1.f, 1.f});
+
+        float originLength = 0.25f;
+        debugRenderer
+            .addLine(v, v + glm::vec3{1.f, 0.f, 0.f} * originLength, glm::vec4{1.f, 0.f, 0.f, 1.f});
+        debugRenderer
+            .addLine(v, v + glm::vec3{0.f, 1.f, 0.f} * originLength, glm::vec4{0.f, 1.f, 0.f, 1.f});
+        debugRenderer
+            .addLine(v, v + glm::vec3{0.f, 0.f, 1.f} * originLength, glm::vec4{0.f, 0.f, 1.f, 1.f});
+
+        const auto cubeAABB = AABB{
+            .min = glm::vec3(glm::vec3{-1.f}),
+            .max = glm::vec3(glm::vec3{1.f}),
+        };
+        debugRenderer.addAABBLines(cubeAABB, glm::vec4{1.f, 1.f, 0.f, 1.f}); */
+    }
+
+    /*
     { // world origin
         debugRenderer.addLine(
             glm::vec3{0.f, 0.f, 0.f}, glm::vec3{1.f, 0.f, 0.f}, glm::vec4{1.f, 0.f, 0.f, 1.f});
@@ -1043,7 +1217,7 @@ void App::renderDebugObjects()
             glm::vec3{0.f, 0.f, 0.f}, glm::vec3{0.f, 1.f, 0.f}, glm::vec4{0.f, 1.f, 0.f, 1.f});
         debugRenderer.addLine(
             glm::vec3{0.f, 0.f, 0.f}, glm::vec3{0.f, 0.f, 1.f}, glm::vec4{0.f, 0.f, 1.f, 1.f});
-    }
+    } */
 
     // spot light
     for (const auto& light : lights) {
@@ -1053,6 +1227,15 @@ void App::renderDebugObjects()
                 light.position + light.direction * 1.f,
                 glm::vec4{1.f, 0.f, 0.f, 1.f},
                 glm::vec4{0.f, 1.f, 0.f, 1.f});
+        } else if (light.light.type == LIGHT_TYPE_POINT) {
+            /* const auto lightAABB = AABB{
+                .min = glm::vec3(light.position - glm::vec3(light.light.range)),
+                .max = glm::vec3(light.position + glm::vec3(light.light.range))};
+            debugRenderer.addAABBLines(lightAABB, light.light.color);
+            debugRenderer.addLine(
+                light.position,
+                light.position + glm::vec3{0.f, 1.f, 0.f},
+                glm::vec4{0.f, 1.f, 0.f, 1.f}); */
         }
     }
 

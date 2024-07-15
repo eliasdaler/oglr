@@ -31,6 +31,73 @@ float calculateOcclusion(vec3 fragPos, mat4 lightSpaceTM, float NoL, uint smInde
     return currentDepth - bias > closestDepth ? 0.0 : 1.0;
 }
 
+vec2 sampleCube(vec3 v, out uint faceIndex)
+{
+    // https://www.gamedev.net/forums/topic/687535-implementing-a-cube-map-lookup-function/5337472/
+    // had to flip x/y axis for OpenGL, though
+    vec3 vAbs = abs(v);
+    float ma;
+    vec2 uv;
+    if (vAbs.z >= vAbs.x && vAbs.z >= vAbs.y) {
+        faceIndex = v.z < 0.0 ? 5 : 4;
+        ma = 0.5 / vAbs.z;
+        uv = vec2(v.z < 0.0 ? -v.x : v.x, -v.y);
+    } else if (vAbs.y >= vAbs.x) {
+        faceIndex = v.y < 0.0 ? 3 : 2;
+        ma = 0.5 / vAbs.y;
+        uv = vec2(v.x, v.y < 0.0 ? -v.z : v.z);
+    } else {
+        faceIndex = v.x < 0.0 ? 1 : 0;
+        ma = 0.5 / vAbs.x;
+        uv = vec2(v.x < 0.0 ? v.z : -v.z, -v.y);
+    }
+
+    uv = uv * ma + vec2(0.5f);
+    return vec2(1.f) - uv;
+}
+
+
+float calculateOcclusionPoint(vec3 fragPos, vec3 lightPos, float NoL, uint startIndex) {
+    vec3 fragToLight = fragPos - lightPos;
+    float currentDepth = length(fragToLight);
+
+    uint faceIndex = 0;
+    vec2 uv = sampleCube(normalize(fragToLight), faceIndex);
+    if (faceIndex == 3) {
+        uv = 1 - uv;
+    }
+
+	float closestDepth = texture(shadowMapTex, vec3(uv, startIndex + faceIndex)).r;
+    float farPlane = 20.f;
+    closestDepth *= farPlane;
+
+    float bias = 0.05f * tan(acos(NoL));
+    bias = clamp(bias, 0.0, 0.1);
+
+    return currentDepth -  bias > closestDepth ? 0.0 : 1.0;
+}
+
+vec2 calculateOcclusionPoint2(vec3 fragPos, vec3 lightPos, float NoL, uint startIndex) {
+    vec3 fragToLight = fragPos - lightPos;
+    float currentDepth = length(fragToLight);
+
+    uint faceIndex = 0;
+    vec2 uv = sampleCube(normalize(fragToLight), faceIndex);
+    if (faceIndex == 3) {
+        uv = 1 - uv;
+    }
+
+	float closestDepth = texture(shadowMapTex, vec3(uv, startIndex + faceIndex)).r;
+    float farPlane = 10.f;
+    float nearPlane = 0.01f;
+    closestDepth = closestDepth * farPlane + nearPlane;
+
+    if (faceIndex == 1) {
+        return vec2(currentDepth / 100.0, closestDepth / 100.0);
+    }
+    return vec2(0.0);
+}
+
 void main()
 {
     vec3 fragPos = inPos;
@@ -40,7 +107,7 @@ void main()
 
     fragColor.rgb = vec3(0.f, 0.f, 0.f);
 
-    fragColor.rgb += calculateLight(fragPos, n, v, diffuse, sunLight, 1.0);
+    // fragColor.rgb += calculateLight(fragPos, n, v, diffuse, sunLight, 1.0);
 
     // float NoL = dot(n, normalize(spotLight.position - fragPos));
     // float occlusion = calculateOcclusion(fragPos, spotLightSpaceTM, NoL);
@@ -56,14 +123,24 @@ void main()
         float occlusion = 1.0;
         if (light.lightSpaceTMsIdx != MAX_SHADOW_CASTING_LIGHTS) {
             float NoL = dot(n, normalize(light.position - fragPos));
-            occlusion = calculateOcclusion(fragPos,
-                    lightSpaceTMs[light.lightSpaceTMsIdx], NoL, light.lightSpaceTMsIdx);
+            if (light.type == LIGHT_TYPE_SPOT) {
+                occlusion = calculateOcclusion(fragPos,
+                        lightSpaceTMs[light.lightSpaceTMsIdx], NoL, light.lightSpaceTMsIdx);
+            } else {
+                occlusion = calculateOcclusionPoint(fragPos, light.position,
+                        NoL, light.lightSpaceTMsIdx);
+                 vec2 test = calculateOcclusionPoint2(fragPos, light.position,
+                        NoL, light.lightSpaceTMsIdx);
+                 // fragColor.rgb += vec3(test.x, test.y, 0.0);
+            }
         }
 
         fragColor.rgb += calculateLight(fragPos, n, v, diffuse, lights[idx], occlusion);
     }
 
     fragColor.rgb += diffuse * ambientColor * ambientIntensity;
+
+    // fragColor.rgb = fragPos;
 
     // gobo
     /* vec4 fragPosLightSpace = spotLightSpaceTM * vec4(fragPos, 1.f);
