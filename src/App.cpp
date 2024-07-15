@@ -100,20 +100,27 @@ glm::vec2 calculateSpotLightScaleOffset(float innerConeAngle, float outerConeAng
 
 GPULightData toGPULightData(const glm::vec3& pos, const glm::vec3& dir, const Light& light)
 {
-    return GPULightData{
+    auto ld = GPULightData{
         .position = pos,
         .intensity = light.intensity,
         .dir = dir,
         .range = light.range,
         .color = glm::vec3(light.color),
         .type = light.type,
-        .scaleOffset = light.scaleOffset,
     };
+    if (ld.type == LIGHT_TYPE_SPOT) {
+        ld.scaleOffset = calculateSpotLightScaleOffset(light.innerConeAngle, light.outerConeAngle);
+    }
+    return ld;
 }
 
-Camera makeSpotLightCamera(const glm::vec3& position, const glm::vec3& direction, float range)
+Camera makeSpotLightCamera(
+    const glm::vec3& position,
+    const glm::vec3& direction,
+    float range,
+    float outerConeAngle)
 {
-    const auto fovX = glm::radians(60.f);
+    const auto fovX = outerConeAngle * 2;
     const auto zNear = 0.1f;
     const auto zFar = range;
     Camera spotLightCamera;
@@ -362,6 +369,7 @@ void App::init()
             .intensity = 0.75f,
         };
 
+        // generate some random floating point lights
         std::uniform_real_distribution<float> posXZDist(-10.f, 10.f);
         std::uniform_real_distribution<float> posYDist(1.5f, 5.0f);
         std::uniform_real_distribution<float> rangeDist(4.f, 15.f);
@@ -392,8 +400,8 @@ void App::init()
                 .color = glm::vec4{1.f, 1.f, 1.f, 1.f},
                 .intensity = 1.f,
                 .range = 20.f,
-                .scaleOffset =
-                    calculateSpotLightScaleOffset(glm::radians(20.f), glm::radians(30.f)),
+                .innerConeAngle = glm::radians(20.f),
+                .outerConeAngle = glm::radians(30.f),
             },
             true // cast shadow
         );
@@ -406,8 +414,8 @@ void App::init()
                 .color = glm::vec4{1.f, 0.f, 1.f, 1.f},
                 .intensity = 1.f,
                 .range = 30.f,
-                .scaleOffset =
-                    calculateSpotLightScaleOffset(glm::radians(20.f), glm::radians(30.f)),
+                .innerConeAngle = glm::radians(20.f),
+                .outerConeAngle = glm::radians(30.f),
             },
             true // cast shadow
         );
@@ -1149,8 +1157,10 @@ void App::addSpotLight(
         .light = light,
         .castsShadow = castShadow,
     };
-    const auto spotLightCamera = makeSpotLightCamera(pos, dir, light.range);
+
+    const auto spotLightCamera = makeSpotLightCamera(pos, dir, light.range, light.outerConeAngle);
     ld.lightSpaceProj = spotLightCamera.getProjection();
     ld.lightSpaceView = spotLightCamera.getView();
+
     lights.push_back(std::move(ld));
 }

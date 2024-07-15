@@ -40,7 +40,10 @@ struct Light {
     glm::vec4 color;
     float intensity{0.f};
     float range{0.f}; // point light only
-    glm::vec2 scaleOffset; // spot light only
+
+    // spot light only
+    float innerConeAngle{0.f};
+    float outerConeAngle{0.f};
 };
 
 struct CPULightData {
@@ -147,7 +150,7 @@ private:
     bool drawWireframes{false};
 
     float timer{0.f};
-    float timeToSpawnNewObject{0.5f};
+    float timeToSpawnNewObject{1000.5f};
     std::vector<std::size_t> randomSpawnMeshes;
     std::vector<std::size_t> randomSpawnTextures;
 
