@@ -95,7 +95,7 @@ void DebugRenderer::addAABBLines(const AABB& aabb, const glm::vec4& color)
 
 void DebugRenderer::addFrustumLines(const Camera& camera)
 {
-    const auto corners = util::calculateFrustumCornersWorldSpace(camera);
+    const auto corners = util::calculateFrustumCornersWorldSpace(camera.getViewProj());
 
     // left plane
     addQuadLines(corners[4], corners[5], corners[1], corners[0], glm::vec4{1.f, 1.f, 0.f, 1.f});

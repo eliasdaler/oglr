@@ -130,26 +130,21 @@ Camera makeSpotLightCamera(const glm::vec3& position, const glm::vec3& direction
     return spotLightCamera;
 }
 
-bool shouldCullLight(
-    const Frustum& frustum,
-    const glm::vec3& lightPos,
-    const glm::vec3& lightDir,
-    const Light& light)
+bool shouldCullLight(const Frustum& frustum, const CPULightData& lightData)
 {
+    auto& light = lightData.light;
     if (light.type == LIGHT_TYPE_DIRECTIONAL) {
         return false;
     }
 
     if (light.type == LIGHT_TYPE_POINT) {
-        Sphere s{.center = lightPos, .radius = light.range};
+        Sphere s{.center = lightData.position, .radius = light.range};
         return !util::isInFrustum(frustum, s);
     }
 
-    // Spot light culling
-    // This code is not optimized at all...
-    const auto spotLightCamera = makeSpotLightCamera(lightPos, lightDir, light.range);
-    // AABB
-    const auto spotLightPoints = util::calculateFrustumCornersWorldSpace(spotLightCamera);
+    // Spot light
+    const auto spotLightPoints = util::calculateFrustumCornersWorldSpace(
+        lightData.lightSpaceProj * lightData.lightSpaceView);
     std::vector<glm::vec3> points;
     points.assign(spotLightPoints.begin(), spotLightPoints.end());
     const auto aabb = util::calculateAABB(points);
@@ -165,12 +160,17 @@ std::array<int, MAX_AFFECTING_LIGHTS> getClosestLights(
         float dist;
     };
     std::vector<LightDist> dists;
+
+    // NOTE: currentLightIdx is used there, not "i", because
+    // we're only uploading non-culled lights to our UBO
+    // and the indices in PerObjectData.lightIdx should match that
+    std::size_t currentLightIdx = 0;
     for (std::size_t i = 0; i < lights.size(); ++i) {
         if (lights[i].culled) {
             continue;
         }
         auto ld = LightDist{
-            .idx = i,
+            .idx = currentLightIdx,
             .dist = glm::length(lights[i].position - objPos),
         };
         // HACK: always include spot lights for image stability
@@ -178,6 +178,7 @@ std::array<int, MAX_AFFECTING_LIGHTS> getClosestLights(
             ld.dist = 0;
         }
         dists.push_back(ld);
+        ++currentLightIdx;
     }
 
     std::sort(dists.begin(), dists.end(), [](const auto& d1, const auto& d2) {
@@ -343,7 +344,7 @@ void App::init()
     spawnObject({}, planeMeshIdx, 2, 1.f);
     // some cubes
     spawnObject({0.f, 1.f, 0.f}, cubeMeshIdx, 0, 1.0f);
-    spawnObject({0.f, 1.f, 2.5f}, cubeMeshIdx, 1, 0.5f);
+    spawnObject({0.f, 1.f, 2.5f}, cubeMeshIdx, 1, 1.f);
     spawnObject({0.f, 1.f, 5.f}, cubeMeshIdx, 0, 1.f);
     spawnObject({0.f, 1.f, 7.5f}, cubeMeshIdx, 1, 1.f);
     // star
@@ -367,7 +368,7 @@ void App::init()
         std::uniform_real_distribution<float> colorDist(0.2f, 0.9f);
         std::uniform_real_distribution<float> rotationRadiusDist(1.f, 10.f);
         std::uniform_real_distribution<float> rotationSpeedDist(-1.5f, 1.5f);
-        for (std::size_t i = 0; i < 0; ++i) {
+        for (std::size_t i = 0; i < 30; ++i) {
             lights.push_back(CPULightData{
                 .position = {posXZDist(rng), posYDist(rng), posXZDist(rng)},
                 .light =
@@ -383,38 +384,33 @@ void App::init()
             });
         }
 
-        lights.push_back(CPULightData{
-            .position = {-3.f, 3.5f, 2.f},
-            .direction = glm::normalize(glm::vec3(1.f, -1.f, 1.f)),
-            .light =
-                Light{
-                    .type = LIGHT_TYPE_SPOT,
-                    .color = glm::vec4{1.f, 1.f, 1.f, 1.f},
-                    .intensity = 1.f,
-                    .range = 20.f,
-                    .scaleOffset =
-                        calculateSpotLightScaleOffset(glm::radians(20.f), glm::radians(30.f)),
-                },
-            .castsShadow = true,
-        });
-        auto spotLightCamera = makeSpotLightCamera(
-            lights.back().position, lights.back().direction, lights.back().light.range);
-        lights.back().lightSpaceProj = spotLightCamera.getProjection();
-        lights.back().lightSpaceView = spotLightCamera.getView();
+        addSpotLight(
+            {-3.f, 3.5f, 2.f}, // pos
+            glm::normalize(glm::vec3(1.f, -1.f, 1.f)), // dir
+            Light{
+                .type = LIGHT_TYPE_SPOT,
+                .color = glm::vec4{1.f, 1.f, 1.f, 1.f},
+                .intensity = 1.f,
+                .range = 20.f,
+                .scaleOffset =
+                    calculateSpotLightScaleOffset(glm::radians(20.f), glm::radians(30.f)),
+            },
+            true // cast shadow
+        );
 
-        lights.push_back(CPULightData{
-            .position = {5.f, 5.0f, 5.f},
-            .direction = glm::normalize(glm::vec3(-1.f, -1.f, 1.f)),
-            .light =
-                Light{
-                    .type = LIGHT_TYPE_SPOT,
-                    .color = glm::vec4{1.f, 0.f, 1.f, 1.f},
-                    .intensity = 1.f,
-                    .range = 10.f,
-                    .scaleOffset =
-                        calculateSpotLightScaleOffset(glm::radians(20.f), glm::radians(30.f)),
-                },
-        });
+        addSpotLight(
+            {2.f, 5.0f, -1.f}, // pos
+            glm::normalize(glm::vec3(-0.5f, -1.f, 0.75f)), // dir
+            Light{
+                .type = LIGHT_TYPE_SPOT,
+                .color = glm::vec4{1.f, 0.f, 1.f, 1.f},
+                .intensity = 1.f,
+                .range = 30.f,
+                .scaleOffset =
+                    calculateSpotLightScaleOffset(glm::radians(20.f), glm::radians(30.f)),
+            },
+            true // cast shadow
+        );
     }
 
     frameStartState = gfx::GlobalState{
@@ -478,18 +474,24 @@ void App::init()
     { // shadow map setup
         glCreateFramebuffers(1, &shadowMapFBO);
 
-        // Depth buffer
-        glCreateTextures(GL_TEXTURE_2D, 1, &shadowMapDepthTexture);
-        glTextureStorage2D(
-            shadowMapDepthTexture, 1, GL_DEPTH_COMPONENT32F, shadowMapSize, shadowMapSize);
+        // depth texture array
+        glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, &shadowMapDepthTexture);
+        glTextureStorage3D(
+            shadowMapDepthTexture,
+            1,
+            GL_DEPTH_COMPONENT32F,
+            shadowMapSize,
+            shadowMapSize,
+            MAX_SHADOW_CASTING_LIGHTS);
 
         float borderColor[] = {1.0f, 1.0f, 1.0f, 1.0f};
         glTextureParameteri(shadowMapDepthTexture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
         glTextureParameteri(shadowMapDepthTexture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-        glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+        glTextureParameterfv(shadowMapDepthTexture, GL_TEXTURE_BORDER_COLOR, borderColor);
 
         // Attach buffers
-        glNamedFramebufferTexture(shadowMapFBO, GL_DEPTH_ATTACHMENT, shadowMapDepthTexture, 0);
+        glNamedFramebufferTextureLayer(
+            shadowMapFBO, GL_DEPTH_ATTACHMENT, shadowMapDepthTexture, 0, 0);
     }
 }
 
@@ -687,6 +689,9 @@ void App::render()
     {
         GL_DEBUG_GROUP("Shadow pass");
         gfx::setGlobalState(opaqueDrawState);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shadowMapFBO);
+        glViewport(0, 0, shadowMapSize, shadowMapSize);
+        glUseProgram(depthOnlyShader);
         for (const auto& light : lights) {
             if (light.shadowMapDrawListIdx != MAX_SHADOW_CASTING_LIGHTS) {
                 renderShadowMap(light);
@@ -787,8 +792,7 @@ void App::generateDrawList()
 
     // cull lights
     for (auto& light : lights) {
-        light.culled =
-            shouldCullLight(mainCameraFrustum, light.position, light.direction, light.light);
+        light.culled = shouldCullLight(mainCameraFrustum, light);
     }
 
     for (std::size_t i = 0; i < objects.size(); ++i) {
@@ -868,14 +872,14 @@ void App::uploadSceneData()
     const auto projection = camera.getProjection();
     const auto view = camera.getView();
 
+    std::size_t currentCameraIdxUbo = 0;
+
     // main cam
-    auto cd = CameraData{
+    const auto cd = CameraData{
         .projection = projection,
         .view = view,
         .cameraPos = glm::vec4{camera.getPosition(), 0.f},
     };
-
-    std::size_t currentCameraIdxUbo = 0;
     mainCameraUboOffset = sceneData.append(cd, uboAlignment);
     ++currentCameraIdxUbo;
 
@@ -889,10 +893,10 @@ void App::uploadSceneData()
             continue;
         }
 
-        auto cd = CameraData{
+        const auto cd = CameraData{
             .projection = light.lightSpaceProj,
             .view = light.lightSpaceView,
-            .cameraPos = glm::vec4{camera.getPosition(), 0.f},
+            .cameraPos = glm::vec4{light.position, 0.f},
         };
         light.camerasUboOffset = sceneData.append(cd, uboAlignment);
         ++currentCameraIdxUbo;
@@ -966,12 +970,19 @@ void App::uploadSceneData()
 
 void App::renderShadowMap(const CPULightData& lightData)
 {
+    assert(!lightData.culled);
     assert(lightData.castsShadow);
     assert(lightData.shadowMapDrawListIdx != MAX_SHADOW_CASTING_LIGHTS);
+    assert(lightData.shadowMapDrawListIdx == lightData.lightSpaceTMsIdx);
 
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shadowMapFBO);
-    glViewport(0, 0, shadowMapSize, shadowMapSize);
-    // clear shadow map
+    glNamedFramebufferTextureLayer(
+        shadowMapFBO,
+        GL_DEPTH_ATTACHMENT,
+        shadowMapDepthTexture,
+        0,
+        lightData.shadowMapDrawListIdx);
+
+    // clear
     GLfloat depthValue{1.f};
     glClearNamedFramebufferfv(shadowMapFBO, GL_DEPTH, 0, &depthValue);
 
@@ -981,14 +992,6 @@ void App::renderShadowMap(const CPULightData& lightData)
         sceneDataBuffer.buffer,
         lightData.camerasUboOffset,
         sizeof(CameraData));
-    glBindBufferRange(
-        GL_UNIFORM_BUFFER,
-        LIGHT_DATA_BINDING,
-        sceneDataBuffer.buffer,
-        lightDataUboOffset,
-        sizeof(LightData));
-
-    glUseProgram(depthOnlyShader);
 
     renderSceneObjects(shadowMapOpaqueDrawLists[lightData.shadowMapDrawListIdx]);
 }
@@ -1132,4 +1135,22 @@ void App::spawnObject(
 Frustum App::getFrustum() const
 {
     return util::createFrustumFromCamera(useTestCameraForCulling ? testCamera : camera);
+}
+
+void App::addSpotLight(
+    const glm::vec3& pos,
+    const glm::vec3& dir,
+    const Light& light,
+    bool castShadow)
+{
+    auto ld = CPULightData{
+        .position = pos,
+        .direction = dir,
+        .light = light,
+        .castsShadow = castShadow,
+    };
+    const auto spotLightCamera = makeSpotLightCamera(pos, dir, light.range);
+    ld.lightSpaceProj = spotLightCamera.getProjection();
+    ld.lightSpaceView = spotLightCamera.getView();
+    lights.push_back(std::move(ld));
 }

@@ -100,6 +100,12 @@ private:
 
     void handleFreeCameraControls(float dt);
 
+    void addSpotLight(
+        const glm::vec3& pos,
+        const glm::vec3& dir,
+        const Light& light,
+        bool castShadow);
+
     void generateRandomObject();
     void spawnObject(
         const glm::vec3& pos,

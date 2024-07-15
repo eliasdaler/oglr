@@ -11,9 +11,9 @@ layout (location = 0) out vec4 fragColor;
 
 layout (location = 1) uniform sampler2D tex;
 layout (location = 2) uniform sampler2D goboTex;
-layout (location = 3) uniform sampler2D shadowMapTex;
+layout (location = 3) uniform sampler2DArray shadowMapTex;
 
-float calculateOcclusion(vec3 fragPos, mat4 lightSpaceTM, float NoL) {
+float calculateOcclusion(vec3 fragPos, mat4 lightSpaceTM, float NoL, uint smIndex) {
     vec4 fragPosLightSpace = lightSpaceTM * vec4(fragPos, 1.f);
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
 
@@ -27,8 +27,7 @@ float calculateOcclusion(vec3 fragPos, mat4 lightSpaceTM, float NoL) {
     bias = clamp(bias, 0.0, 0.1);
 
     float currentDepth = projCoords.z;
-    float closestDepth = texture(shadowMapTex, projCoords.xy).r;
-    float visibility = 1.0;
+    float closestDepth = texture(shadowMapTex, vec3(projCoords.xy, smIndex)).r;
     return currentDepth - bias > closestDepth ? 0.0 : 1.0;
 }
 
@@ -57,7 +56,8 @@ void main()
         float occlusion = 1.0;
         if (light.lightSpaceTMsIdx != MAX_SHADOW_CASTING_LIGHTS) {
             float NoL = dot(n, normalize(light.position - fragPos));
-            occlusion = calculateOcclusion(fragPos, lightSpaceTMs[light.lightSpaceTMsIdx], NoL);
+            occlusion = calculateOcclusion(fragPos,
+                    lightSpaceTMs[light.lightSpaceTMsIdx], NoL, light.lightSpaceTMsIdx);
         }
 
         fragColor.rgb += calculateLight(fragPos, n, v, diffuse, lights[idx], occlusion);

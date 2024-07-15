@@ -4,7 +4,7 @@
 
 namespace util
 {
-std::array<glm::vec3, 8> calculateFrustumCornersWorldSpace(const Camera& camera)
+std::array<glm::vec3, 8> calculateFrustumCornersWorldSpace(const glm::mat4& vp)
 {
     bool usesInverseDepth = false;
     bool isClipSpaceYDown = false;
@@ -26,7 +26,7 @@ std::array<glm::vec3, 8> calculateFrustumCornersWorldSpace(const Camera& camera)
         glm::vec3{1.f, bottomY, farDepth},
     };
 
-    const auto inv = glm::inverse(camera.getViewProj());
+    const auto inv = glm::inverse(vp);
     std::array<glm::vec3, 8> corners{};
     for (int i = 0; i < 8; ++i) {
         auto corner = inv * glm::vec4(cornersNDC[i], 1.f);

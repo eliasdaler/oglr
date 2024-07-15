@@ -69,7 +69,7 @@ struct Frustum {
 
 namespace util
 {
-std::array<glm::vec3, 8> calculateFrustumCornersWorldSpace(const Camera& camera);
+std::array<glm::vec3, 8> calculateFrustumCornersWorldSpace(const glm::mat4& vp);
 Frustum createFrustumFromCamera(const Camera& camera);
 Frustum createFrustumFromVPMatrix(const glm::mat4& vp);
 bool isInFrustum(const Frustum& frustum, const AABB& aabb);
