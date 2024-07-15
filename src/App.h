@@ -22,6 +22,7 @@ struct ObjectData {
 
 inline constexpr std::size_t MAX_LIGHTS_IN_UBO = 32;
 inline constexpr std::size_t MAX_AFFECTING_LIGHTS = 8;
+inline constexpr std::size_t MAX_SHADOW_CASTING_LIGHTS = 8;
 
 struct DrawInfo {
     std::size_t objectIdx;
@@ -47,6 +48,14 @@ struct CPULightData {
     glm::vec3 direction;
     Light light;
 
+    // spot only
+    glm::mat4 lightSpaceProj;
+    glm::mat4 lightSpaceView;
+
+    std::size_t shadowMapDrawListIdx; // index into shadowMapOpaqueDrawLists
+    std::size_t camerasUboOffset; // index into SceneData UBO camera part
+    std::size_t lightSpaceTMsIdx; // index into LightData.lightSpaceTMs
+
     // animation
     glm::vec3 rotationOrigin{};
     float rotationAngle{0.f};
@@ -54,6 +63,7 @@ struct CPULightData {
     float rotationSpeed{0.f};
 
     bool culled{false};
+    bool castsShadow{false};
 };
 
 struct GPULightData {
@@ -64,7 +74,8 @@ struct GPULightData {
     glm::vec3 color;
     int type;
     glm::vec2 scaleOffset; // spot light only
-    glm::vec2 padding;
+    std::uint32_t lightSpaceTMsIdx{MAX_SHADOW_CASTING_LIGHTS};
+    std::uint32_t unused;
 };
 
 struct Frustum;
@@ -82,7 +93,7 @@ private:
 
     void generateDrawList();
     void uploadSceneData();
-    void renderShadowMap();
+    void renderShadowMap(const CPULightData& lightData);
     void renderSceneObjects(const std::vector<DrawInfo>& drawList);
     void renderDebugObjects();
     void renderWireframes(const std::vector<DrawInfo>& drawList);
@@ -145,7 +156,7 @@ private:
         float ambientIntensity;
 
         GPULightData sunLight;
-        glm::mat4 spotLightSpaceTM;
+        std::array<glm::mat4, MAX_SHADOW_CASTING_LIGHTS> lightSpaceTMs;
         std::array<GPULightData, MAX_LIGHTS_IN_UBO> lights;
     };
 
@@ -159,8 +170,8 @@ private:
     int uboAlignment{4};
 
     gfx::BumpAllocator sceneData;
-    std::size_t MAX_CAMERAS_IN_UBO = 8;
-    std::vector<std::size_t> cameraDataUboOffsets; // 0 - main camera, 1 etc. - other cameras
+    std::size_t MAX_CAMERAS_IN_UBO = 32;
+    std::size_t mainCameraUboOffset;
     std::size_t lightDataUboOffset;
 
     glm::vec3 ambientColor;
@@ -175,7 +186,7 @@ private:
     std::vector<DrawInfo> opaqueDrawList;
     std::vector<DrawInfo> transparentDrawList;
 
-    std::vector<DrawInfo> shadowMapOpaqueDrawList;
+    std::array<std::vector<DrawInfo>, MAX_SHADOW_CASTING_LIGHTS> shadowMapOpaqueDrawLists;
 
     gfx::GlobalState frameStartState;
     gfx::GlobalState opaqueDrawState;

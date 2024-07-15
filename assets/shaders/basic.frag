@@ -51,7 +51,16 @@ void main()
     for (int i = 0; i < MAX_AFFECTING_LIGHTS; i++) {
         int idx = lightIdx[i >> 2][i & 3];
         if (idx > MAX_LIGHTS) { continue; }
-        fragColor.rgb += calculateLight(fragPos, n, v, diffuse, lights[idx], 1.0);
+
+        Light light = lights[idx];
+
+        float occlusion = 1.0;
+        if (light.lightSpaceTMsIdx != MAX_SHADOW_CASTING_LIGHTS) {
+            float NoL = dot(n, normalize(light.position - fragPos));
+            occlusion = calculateOcclusion(fragPos, lightSpaceTMs[light.lightSpaceTMsIdx], NoL);
+        }
+
+        fragColor.rgb += calculateLight(fragPos, n, v, diffuse, lights[idx], occlusion);
     }
 
     fragColor.rgb += diffuse * ambientColor * ambientIntensity;

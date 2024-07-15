@@ -38,11 +38,14 @@ std::array<glm::vec3, 8> calculateFrustumCornersWorldSpace(const Camera& camera)
 
 Frustum createFrustumFromCamera(const Camera& camera)
 {
+    return createFrustumFromVPMatrix(camera.getViewProj());
+}
+
+Frustum createFrustumFromVPMatrix(const glm::mat4& m)
+{
     // http://www8.cs.umu.se/kurser/5DV051/HT12/lab/plane_extraction.pdf
     // Need to negate everything because we're looking at -Z, not +Z
     // NOTE: if clipNearZ == 0, then farFace = {-m[0][2], -m[1][2], -m[2][2], -m[3][2]}
-    const auto m = camera.getViewProj();
-
     Frustum frustum;
     frustum.nearFace =
         {-(m[0][3] + m[0][2]), -(m[1][3] + m[1][2]), -(m[2][3] + m[2][2]), -(m[3][3] + m[3][2])};

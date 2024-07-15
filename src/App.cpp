@@ -111,6 +111,25 @@ GPULightData toGPULightData(const glm::vec3& pos, const glm::vec3& dir, const Li
     };
 }
 
+Camera makeSpotLightCamera(const glm::vec3& position, const glm::vec3& direction, float range)
+{
+    const auto fovX = glm::radians(60.f);
+    const auto zNear = 0.1f;
+    const auto zFar = range;
+    Camera spotLightCamera;
+    spotLightCamera.init(fovX, zNear, zFar, 1.f);
+    spotLightCamera.setPosition(position);
+
+    // need - in quatLookAt because it assumes -Z forward
+    if (std::abs(glm::dot(direction, math::GLOBAL_UP_DIR)) > 0.9999f) {
+        spotLightCamera.setHeading(glm::quatLookAt(-direction, math::GLOBAL_FORWARD_DIR));
+    } else {
+        spotLightCamera.setHeading(glm::quatLookAt(-direction, math::GLOBAL_UP_DIR));
+    }
+
+    return spotLightCamera;
+}
+
 bool shouldCullLight(
     const Frustum& frustum,
     const glm::vec3& lightPos,
@@ -128,19 +147,7 @@ bool shouldCullLight(
 
     // Spot light culling
     // This code is not optimized at all...
-    // Calculate camera (easy to find AABB points later!)
-    const auto fovX = glm::radians(60.f);
-    const auto zNear = 0.1f;
-    const auto zFar = light.range;
-    Camera spotLightCamera;
-    spotLightCamera.init(fovX, zNear, zFar, 1.f);
-    spotLightCamera.setPosition(lightPos);
-    if (std::abs(glm::dot(lightDir, math::GLOBAL_UP_DIR)) > 0.9999f) {
-        spotLightCamera.setHeading(glm::quatLookAt(-lightDir, math::GLOBAL_FORWARD_DIR));
-    } else {
-        spotLightCamera.setHeading(glm::quatLookAt(-lightDir, math::GLOBAL_UP_DIR));
-    }
-
+    const auto spotLightCamera = makeSpotLightCamera(lightPos, lightDir, light.range);
     // AABB
     const auto spotLightPoints = util::calculateFrustumCornersWorldSpace(spotLightCamera);
     std::vector<glm::vec3> points;
@@ -281,7 +288,6 @@ void App::init()
             cameraDataSize * MAX_CAMERAS_IN_UBO + lightDataSize + perObjectDataElementSize * 100;
         sceneDataBuffer = gfx::allocateBuffer(bufSize, nullptr, "sceneData");
         sceneData.resize(bufSize);
-        cameraDataUboOffsets.resize(MAX_CAMERAS_IN_UBO);
     }
 
     // we still need an empty VAO even for vertex pulling
@@ -361,7 +367,7 @@ void App::init()
         std::uniform_real_distribution<float> colorDist(0.2f, 0.9f);
         std::uniform_real_distribution<float> rotationRadiusDist(1.f, 10.f);
         std::uniform_real_distribution<float> rotationSpeedDist(-1.5f, 1.5f);
-        for (std::size_t i = 0; i < 30; ++i) {
+        for (std::size_t i = 0; i < 0; ++i) {
             lights.push_back(CPULightData{
                 .position = {posXZDist(rng), posYDist(rng), posXZDist(rng)},
                 .light =
@@ -389,7 +395,12 @@ void App::init()
                     .scaleOffset =
                         calculateSpotLightScaleOffset(glm::radians(20.f), glm::radians(30.f)),
                 },
+            .castsShadow = true,
         });
+        auto spotLightCamera = makeSpotLightCamera(
+            lights.back().position, lights.back().direction, lights.back().light.range);
+        lights.back().lightSpaceProj = spotLightCamera.getProjection();
+        lights.back().lightSpaceView = spotLightCamera.getView();
 
         lights.push_back(CPULightData{
             .position = {5.f, 5.0f, 5.f},
@@ -618,7 +629,7 @@ void App::update(float dt)
     }
     ImGui::Text("Lights culled : %d", numLightsCulled);
 
-    ImGui::Text("Drawn objects (shadow map): %d", (int)shadowMapOpaqueDrawList.size());
+    // ImGui::Text("Drawn objects (shadow map): %d", (int)shadowMapOpaqueDrawList.size());
     ImGui::Checkbox("Use test camera for culling", &useTestCameraForCulling);
     ImGui::Checkbox("Draw AABBs", &drawAABBs);
     ImGui::Checkbox("Draw wireframes", &drawWireframes);
@@ -676,7 +687,11 @@ void App::render()
     {
         GL_DEBUG_GROUP("Shadow pass");
         gfx::setGlobalState(opaqueDrawState);
-        renderShadowMap();
+        for (const auto& light : lights) {
+            if (light.shadowMapDrawListIdx != MAX_SHADOW_CASTING_LIGHTS) {
+                renderShadowMap(light);
+            }
+        }
     }
 
     {
@@ -707,7 +722,7 @@ void App::render()
             GL_UNIFORM_BUFFER,
             CAMERA_DATA_BINDING,
             sceneDataBuffer.buffer,
-            cameraDataUboOffsets[0],
+            mainCameraUboOffset,
             sizeof(CameraData));
         glBindBufferRange(
             GL_UNIFORM_BUFFER,
@@ -817,17 +832,32 @@ void App::generateDrawList()
     sortDrawList(opaqueDrawList, SortOrder::FrontToBack);
     sortDrawList(transparentDrawList, SortOrder::BackToFront);
 
-    // shadow map draw list
-    shadowMapOpaqueDrawList.clear();
-    /* if (!spotLightCulled) {
-        const auto spotLightFrustum = util::createFrustumFromCamera(spotLightCamera);
+    // shadow map draw lists
+    for (auto& dl : shadowMapOpaqueDrawLists) {
+        dl.clear();
+    }
+    std::size_t shadowMapDrawListIdx = 0;
+    for (auto& light : lights) {
+        if (!light.castsShadow || light.culled) {
+            light.shadowMapDrawListIdx = MAX_SHADOW_CASTING_LIGHTS;
+            continue;
+        }
+        if (shadowMapDrawListIdx >= MAX_SHADOW_CASTING_LIGHTS) {
+            light.shadowMapDrawListIdx = MAX_SHADOW_CASTING_LIGHTS;
+            continue;
+        }
+
+        const auto spotLightFrustum =
+            util::createFrustumFromVPMatrix(light.lightSpaceProj * light.lightSpaceView);
+        light.shadowMapDrawListIdx = shadowMapDrawListIdx;
         for (const auto& drawInfo : drawList) {
             const auto& object = objects[drawInfo.objectIdx];
             if (object.alpha == 1.f && util::isInFrustum(spotLightFrustum, object.worldAABB)) {
-                shadowMapOpaqueDrawList.push_back(drawInfo);
+                shadowMapOpaqueDrawLists[shadowMapDrawListIdx].push_back(drawInfo);
             }
         }
-    } */
+        ++shadowMapDrawListIdx;
+    }
 }
 
 void App::uploadSceneData()
@@ -838,41 +868,77 @@ void App::uploadSceneData()
     const auto projection = camera.getProjection();
     const auto view = camera.getView();
 
-    cameraDataUboOffsets.clear();
-
     // main cam
     auto cd = CameraData{
         .projection = projection,
         .view = view,
         .cameraPos = glm::vec4{camera.getPosition(), 0.f},
     };
-    cameraDataUboOffsets.push_back(sceneData.append(cd, uboAlignment));
 
-    // spot light cam
-    /* cd = CameraData{
-        .projection = spotLightCamera.getProjection(),
-        .view = spotLightCamera.getView(),
-        .cameraPos = glm::vec4{spotLightCamera.getPosition(), 0.f},
-    };
-    cameraDataUboOffsets.push_back(sceneData.append(cd, uboAlignment));
-    */
+    std::size_t currentCameraIdxUbo = 0;
+    mainCameraUboOffset = sceneData.append(cd, uboAlignment);
+    ++currentCameraIdxUbo;
+
+    // light "cameras"
+    for (auto& light : lights) {
+        if (!light.castsShadow || light.culled) {
+            continue;
+        }
+
+        if (currentCameraIdxUbo >= MAX_CAMERAS_IN_UBO) {
+            continue;
+        }
+
+        auto cd = CameraData{
+            .projection = light.lightSpaceProj,
+            .view = light.lightSpaceView,
+            .cameraPos = glm::vec4{camera.getPosition(), 0.f},
+        };
+        light.camerasUboOffset = sceneData.append(cd, uboAlignment);
+        ++currentCameraIdxUbo;
+    }
 
     auto ld = LightData{
         // ambient
         .ambientColor = glm::vec3{ambientColor},
         .ambientIntensity = ambientIntensity,
-        // lights
         .sunLight = toGPULightData({}, sunLightDir, sunLight),
-        // .spotLightSpaceTM = spotLightCamera.getViewProj(),
     };
 
+    // other lights
     assert(lights.size() <= MAX_LIGHTS_IN_UBO);
     std::size_t currentLightIndex = 0;
     for (const auto& light : lights) {
-        ld.lights[currentLightIndex] = toGPULightData(light.position, light.direction, light.light);
+        if (light.culled) {
+            continue;
+        }
+
+        auto gpuLD = toGPULightData(light.position, light.direction, light.light);
+        if (light.castsShadow) {
+            gpuLD.lightSpaceTMsIdx = light.lightSpaceTMsIdx;
+        }
+
+        ld.lights[currentLightIndex] = gpuLD;
         ++currentLightIndex;
     }
-    // ld.lights[currentLightIndex] = toGPULightData(spotLightPosition, spotLightDir, spl),
+
+    // light space TMs
+    std::size_t currentTMIdx = 0;
+    for (auto& light : lights) {
+        if (!light.castsShadow || light.culled) {
+            continue;
+        }
+        if (currentTMIdx >= MAX_SHADOW_CASTING_LIGHTS) {
+            light.lightSpaceTMsIdx = MAX_SHADOW_CASTING_LIGHTS;
+            continue;
+        }
+
+        ld.lightSpaceTMs[currentTMIdx] = light.lightSpaceProj * light.lightSpaceView;
+        light.lightSpaceTMsIdx = currentTMIdx;
+
+        ++currentTMIdx;
+    }
+
     lightDataUboOffset = sceneData.append(ld, uboAlignment);
 
     // per object data
@@ -898,8 +964,11 @@ void App::uploadSceneData()
         sceneDataBuffer.buffer, 0, sceneData.getData().size(), sceneData.getData().data());
 }
 
-void App::renderShadowMap()
+void App::renderShadowMap(const CPULightData& lightData)
 {
+    assert(lightData.castsShadow);
+    assert(lightData.shadowMapDrawListIdx != MAX_SHADOW_CASTING_LIGHTS);
+
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shadowMapFBO);
     glViewport(0, 0, shadowMapSize, shadowMapSize);
     // clear shadow map
@@ -910,7 +979,7 @@ void App::renderShadowMap()
         GL_UNIFORM_BUFFER,
         CAMERA_DATA_BINDING,
         sceneDataBuffer.buffer,
-        cameraDataUboOffsets[1],
+        lightData.camerasUboOffset,
         sizeof(CameraData));
     glBindBufferRange(
         GL_UNIFORM_BUFFER,
@@ -921,7 +990,7 @@ void App::renderShadowMap()
 
     glUseProgram(depthOnlyShader);
 
-    renderSceneObjects(shadowMapOpaqueDrawList);
+    renderSceneObjects(shadowMapOpaqueDrawLists[lightData.shadowMapDrawListIdx]);
 }
 
 void App::renderSceneObjects(const std::vector<DrawInfo>& drawList)
