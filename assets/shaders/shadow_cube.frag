@@ -6,6 +6,6 @@ layout (location = 2) in vec3 inNormal;
 
 void main()
 {
-    gl_FragDepth = length(vec3(inPos) - vec3(3.f, 3.5f, 2.f)) / 20.0;
+    // gl_FragDepth = length(vec3(inPos) - vec3(3.f, 3.5f, 2.f)) / 20.0;
 }
 

@@ -112,7 +112,6 @@ float calculateOcclusionPoint(vec3 fragPos, vec3 lightPos, float NoL, uint start
     float depthBufferZ = (z/w) * 0.5 + 0.5;
 
 	return texture(shadowMapTex, vec4(uv, startIndex + faceIndex, depthBufferZ));
-    // return depthBufferZ / 10.0;
     // return currentDepth / 100.0;
 }
 
