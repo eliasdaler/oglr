@@ -431,7 +431,7 @@ void App::init()
     spawnObject({6.f, 1.f, 2.5f}, cubeMeshIdx, 1, 1.f);
     spawnObject({6.f, 1.f, 5.f}, cubeMeshIdx, 0, 1.f);
     // star
-    spawnObject({3.f, 6.0f, 2.0f}, cubeMeshIdx, 0, 1.f);
+    spawnObject({3.f, 6.0f, 2.0f}, 1, 0, 1.f);
     // spawnObject({0.f, 0.3f, 7.5f}, 1, 1, 1.f);
 
     { // init lights

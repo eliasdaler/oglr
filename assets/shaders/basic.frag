@@ -102,16 +102,18 @@ float calculateOcclusionPoint(vec3 fragPos, vec3 lightPos, float NoL, uint start
     float proj23 = -1;
     float proj33 = 0;
 
-    float Z = currentDepth;
-    float z = Z*proj22 + proj32;
-    float w = Z*proj23 + proj33;
+    float Z = -currentDepth;
+    float z = Z*(proj22) + proj32;
+    float w = Z*(proj23) + proj33;
 
-    z = Z*proj22 + proj23;
-    w = Z*proj32 + proj33;
+    float bias = 0.001 * tan(acos(NoL));
+    bias = clamp(bias, 0.0, 0.1);
 
     float depthBufferZ = (z/w) * 0.5 + 0.5;
 
-	return texture(shadowMapTex, vec4(uv, startIndex + faceIndex, depthBufferZ));
+	return texture(shadowMapTex, vec4(uv, startIndex + faceIndex, depthBufferZ - bias));
+    // return currentDepth / 10.0;
+    // return depthBufferZ / 10.0;
     // return currentDepth / 100.0;
 }
 
