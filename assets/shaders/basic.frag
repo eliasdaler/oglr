@@ -11,7 +11,7 @@ layout (location = 0) out vec4 fragColor;
 
 layout (location = 1) uniform sampler2D tex;
 layout (location = 2) uniform sampler2D goboTex;
-layout (location = 3) uniform sampler2DArray shadowMapTex;
+layout (location = 3) uniform sampler2DArrayShadow shadowMapTex;
 
 float calculateOcclusion(vec3 fragPos, mat4 lightSpaceTM, float NoL, uint smIndex) {
     vec4 fragPosLightSpace = lightSpaceTM * vec4(fragPos, 1.f);
@@ -26,9 +26,10 @@ float calculateOcclusion(vec3 fragPos, mat4 lightSpaceTM, float NoL, uint smInde
     float bias = 0.001 * tan(acos(NoL));
     bias = clamp(bias, 0.0, 0.1);
 
-    float currentDepth = projCoords.z;
-    float closestDepth = texture(shadowMapTex, vec3(projCoords.xy, smIndex)).r;
-    return currentDepth - bias > closestDepth ? 0.0 : 1.0;
+    float currentDepth = projCoords.z - bias;
+    // float closestDepth = texture(shadowMapTex, vec3(projCoords.xy, smIndex)).r;
+    // return currentDepth - bias > closestDepth ? 0.0 : 1.0;
+	return texture(shadowMapTex, vec4(projCoords.xy, smIndex, currentDepth));
 }
 
 vec2 sampleCube(vec3 v, out uint faceIndex)
@@ -56,46 +57,63 @@ vec2 sampleCube(vec3 v, out uint faceIndex)
     return vec2(1.f) - uv;
 }
 
-
-float calculateOcclusionPoint(vec3 fragPos, vec3 lightPos, float NoL, uint startIndex) {
-    vec3 fragToLight = fragPos - lightPos;
-    float currentDepth = length(fragToLight);
-
-    uint faceIndex = 0;
-    vec2 uv = sampleCube(normalize(fragToLight), faceIndex);
-    if (faceIndex == 3) {
-        uv = 1 - uv;
+void calcPointLightLookupInfo(vec3 dir, out uint faceIdx, out vec2 uv, out float depth) {
+    depth = max(max(abs(dir.x), abs(dir.y)), abs(dir.z));
+    if (dir.x == depth) {
+        faceIdx = 0;
+        uv = vec2(dir.z, -dir.y) / dir.x;
+    } else if (-dir.x == depth) {
+        faceIdx = 1;
+        uv = vec2(-dir.z, -dir.y) / -dir.x;
+    } else if (dir.y == depth) {
+        faceIdx = 2;
+        uv = vec2(-dir.x, dir.z) / dir.y;
+    } else if (-dir.y == depth) {
+        faceIdx = 3;
+        uv = vec2(-dir.x, -dir.z) / -dir.y;
+    } else if (dir.z == depth) {
+        faceIdx = 4;
+        uv = vec2(-dir.x, -dir.y) / dir.z;
+    } else { // if(-dir.z == depth)
+        faceIdx = 5;
+        uv = vec2(dir.x, -dir.y) / -dir.z;
     }
-
-	float closestDepth = texture(shadowMapTex, vec3(uv, startIndex + faceIndex)).r;
-    float farPlane = 20.f;
-    closestDepth *= farPlane;
-
-    float bias = 0.05f * tan(acos(NoL));
-    bias = clamp(bias, 0.0, 0.1);
-
-    return currentDepth -  bias > closestDepth ? 0.0 : 1.0;
+    uv = uv * vec2(0.5, 0.5) + vec2(0.5, 0.5);
 }
 
-vec2 calculateOcclusionPoint2(vec3 fragPos, vec3 lightPos, float NoL, uint startIndex) {
+float calculateOcclusionPoint(vec3 fragPos, vec3 lightPos, float NoL, uint startIndex) {
+    uint faceIndex;
+    vec2 uv;
+    float currentDepth;
+
     vec3 fragToLight = fragPos - lightPos;
-    float currentDepth = length(fragToLight);
+    calcPointLightLookupInfo(fragToLight, faceIndex, uv, currentDepth);
 
-    uint faceIndex = 0;
-    vec2 uv = sampleCube(normalize(fragToLight), faceIndex);
-    if (faceIndex == 3) {
-        uv = 1 - uv;
+    // TODO: fix uvs
+    uv.y = 1 - uv.y;
+    if (faceIndex == 2 || faceIndex == 3) {
+        // "up" and "down" have weird orientations currently
+        uv.y = 1 - uv.y;
+        uv.x = 1 - uv.x;
     }
 
-	float closestDepth = texture(shadowMapTex, vec3(uv, startIndex + faceIndex)).r;
-    float farPlane = 10.f;
-    float nearPlane = 0.01f;
-    closestDepth = closestDepth * farPlane + nearPlane;
+    float proj22 = -1.0100503;
+    float proj32 = -0.201005027;
+    float proj23 = -1;
+    float proj33 = 0;
 
-    if (faceIndex == 1) {
-        return vec2(currentDepth / 100.0, closestDepth / 100.0);
-    }
-    return vec2(0.0);
+    float Z = currentDepth;
+    float z = Z*proj22 + proj32;
+    float w = Z*proj23 + proj33;
+
+    z = Z*proj22 + proj23;
+    w = Z*proj32 + proj33;
+
+    float depthBufferZ = (z/w) * 0.5 + 0.5;
+
+	return texture(shadowMapTex, vec4(uv, startIndex + faceIndex, depthBufferZ));
+    // return depthBufferZ / 10.0;
+    // return currentDepth / 100.0;
 }
 
 void main()
@@ -129,9 +147,7 @@ void main()
             } else {
                 occlusion = calculateOcclusionPoint(fragPos, light.position,
                         NoL, light.lightSpaceTMsIdx);
-                 vec2 test = calculateOcclusionPoint2(fragPos, light.position,
-                        NoL, light.lightSpaceTMsIdx);
-                 // fragColor.rgb += vec3(test.x, test.y, 0.0);
+                // fragColor.rgb += vec3(occlusion, 0.0, 0.0);
             }
         }
 

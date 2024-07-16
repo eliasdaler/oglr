@@ -232,6 +232,31 @@ std::pair<glm::vec2, int> sampleCube(const glm::vec3& v)
     return {glm::vec2{1.f} - uv, faceIndex};
 }
 
+void sampleCube2(const glm::vec3& dir, std::uint32_t& faceIdx, glm::vec2& uv, float& depth)
+{
+    depth = fmax(fmax(abs(dir.x), abs(dir.y)), abs(dir.z));
+    if (dir.x == depth) {
+        faceIdx = 0;
+        uv = glm::vec2(dir.z, -dir.y) / dir.x;
+    } else if (-dir.x == depth) {
+        faceIdx = 1;
+        uv = glm::vec2(-dir.z, -dir.y) / -dir.x;
+    } else if (dir.y == depth) {
+        faceIdx = 2;
+        uv = glm::vec2(-dir.x, dir.z) / dir.y;
+    } else if (-dir.y == depth) {
+        faceIdx = 3;
+        uv = glm::vec2(-dir.x, -dir.z) / -dir.y;
+    } else if (dir.z == depth) {
+        faceIdx = 4;
+        uv = glm::vec2(-dir.x, -dir.y) / dir.z;
+    } else { // if(-dir.z == depth)
+        faceIdx = 5;
+        uv = glm::vec2(dir.x, -dir.y) / -dir.z;
+    }
+    uv = uv * glm::vec2(0.5, 0.5) + glm::vec2(0.5, 0.5);
+}
+
 } // end of anonymous namespace
 
 void App::start()
@@ -379,6 +404,24 @@ void App::init()
 
     // ground plane
     spawnObject({}, planeMeshIdx, 2, 1.f);
+
+    spawnObject({0.f, 7.5f, 0.f}, planeMeshIdx, 2, 1.f);
+    objects.back().transform.heading =
+        glm::angleAxis(glm::radians(180.f), glm::vec3{0.f, 0.f, 1.f});
+
+    spawnObject({7.5f, 0.f, 0.f}, planeMeshIdx, 2, 1.f);
+    objects.back().transform.heading = glm::angleAxis(glm::radians(90.f), glm::vec3{0.f, 0.f, 1.f});
+    spawnObject({-5.f, 0.f, 0.f}, planeMeshIdx, 2, 1.f);
+    objects.back().transform.heading =
+        glm::angleAxis(glm::radians(-90.f), glm::vec3{0.f, 0.f, 1.f});
+
+    spawnObject({0.f, 0.f, 10.f}, planeMeshIdx, 2, 1.f);
+    objects.back().transform.heading =
+        glm::angleAxis(glm::radians(-90.f), glm::vec3{1.f, 0.f, 0.f});
+
+    spawnObject({0.f, 0.f, -4.f}, planeMeshIdx, 2, 1.f);
+    objects.back().transform.heading = glm::angleAxis(glm::radians(90.f), glm::vec3{1.f, 0.f, 0.f});
+
     // some cubes
     spawnObject({0.f, 1.f, 0.f}, cubeMeshIdx, 0, 1.0f);
     spawnObject({0.f, 1.f, 2.5f}, cubeMeshIdx, 1, 1.f);
@@ -388,7 +431,7 @@ void App::init()
     spawnObject({6.f, 1.f, 2.5f}, cubeMeshIdx, 1, 1.f);
     spawnObject({6.f, 1.f, 5.f}, cubeMeshIdx, 0, 1.f);
     // star
-    // spawnObject({0.f, 0.1f, 5.0f}, 1, 0, 1.f);
+    spawnObject({3.f, 6.0f, 2.0f}, cubeMeshIdx, 0, 1.f);
     // spawnObject({0.f, 0.3f, 7.5f}, 1, 1, 1.f);
 
     { // init lights
@@ -440,9 +483,9 @@ void App::init()
                 .outerConeAngle = glm::radians(30.f),
             },
             true // cast shadow
-        );
+        ); */
 
-        addSpotLight(
+        /* addSpotLight(
             {2.f, 5.0f, -1.f}, // pos
             glm::normalize(glm::vec3(-0.5f, -1.f, 0.75f)), // dir
             Light{
@@ -466,8 +509,8 @@ void App::init()
             static const std::array<std::pair<glm::vec3, glm::vec3>, 6> shadowDirections{{
                 {{1.0, 0.0, 0.0}, {0.0, -1.0, 0.0}}, // posx
                 {{-1.0, 0.0, 0.0}, {0.0, -1.0, 0.0}}, // negx
-                {{0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}}, // posy
-                {{0.0, -1.0, 0.0}, {0.0, 0.0, -1.0}}, // negy
+                {{0.0, 1.0, 0.0}, {0.0, 0.0, -1.0}}, // posy
+                {{0.0, -1.0, 0.0}, {0.0, 0.0, 1.0}}, // negy
                 {{0.0, 0.0, 1.0}, {0.0, -1.0, 0.0}}, // posz
                 {{0.0, 0.0, -1.0}, {0.0, -1.0, 0.0}}, // negz
             }};
@@ -555,7 +598,11 @@ void App::init()
         float borderColor[] = {1.0f, 1.0f, 1.0f, 1.0f};
         glTextureParameteri(shadowMapDepthTexture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
         glTextureParameteri(shadowMapDepthTexture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        glTextureParameteri(shadowMapDepthTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTextureParameteri(shadowMapDepthTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTextureParameterfv(shadowMapDepthTexture, GL_TEXTURE_BORDER_COLOR, borderColor);
+        glTextureParameteri(
+            shadowMapDepthTexture, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
 
         // Attach buffers
         glNamedFramebufferTextureLayer(
@@ -702,6 +749,12 @@ void App::update(float dt)
         const auto v = glm::normalize(testFragPos - testLightPos);
         auto [uv, faceIndex] = sampleCube(v);
         ImGui::Text("uv = (%.2f, %.2f), index = %d", uv.x, uv.y, faceIndex);
+
+        std::uint32_t faceIndex2;
+        float depth;
+        glm::vec2 uv2;
+        sampleCube2(v, faceIndex2, uv2, depth);
+        ImGui::Text("uv = (%.2f, %.2f), index = %d, depth = %.2f", uv.x, uv.y, faceIndex, depth);
     }
 
     ImGui::Text("Total objects: %d", (int)objects.size());
@@ -894,8 +947,6 @@ void App::generateDrawList()
         // recalculate world AABB
         const auto& meshAABB = meshes[object.meshIdx].aabb;
         const auto tm = object.transform.asMatrix();
-        object.worldAABB = util::calculateWorldAABB(meshAABB, tm);
-
         const auto distToCamera = glm::length(camera.getPosition() - object.transform.position);
 
         drawList.push_back(DrawInfo{
@@ -963,10 +1014,9 @@ void App::generateDrawList()
                 }
                 for (const auto& drawInfo : drawList) {
                     const auto& object = objects[drawInfo.objectIdx];
+                    // if (object.alpha == 1.f && util::isInFrustum(frustum, object.worldAABB)) {
                     shadowMapOpaqueDrawLists[shadowMapDrawListIdx].push_back(drawInfo);
-                    /* if (object.alpha == 1.f && util::isInFrustum(frustum, object.worldAABB)) {
-                        shadowMapOpaqueDrawLists[shadowMapDrawListIdx].push_back(drawInfo);
-                    } */
+                    // }
                 }
                 ++shadowMapDrawListIdx;
             }
