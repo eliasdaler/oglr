@@ -338,15 +338,7 @@ void App::init()
         camera.lookAt({0.f, 4.f, -1.f});
     }
 
-    { // init test camera
-        const auto fovX = 45.f;
-        const auto zNear = 0.1f;
-        const auto zFar = 7.5f;
-        testCamera.init(fovX, zNear, zFar, (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT);
-        // testCamera.setPosition({2.f, 3.f, -3.f});
-        testCamera.setPosition({0.f, 3.f, -3.f});
-        testCamera.lookAt(glm::vec3{0.f, 0.f, 0.f});
-    }
+    testCamera = camera;
 
     // ground plane
     spawnObject({}, planeMeshIdx, 2, 1.f);
@@ -881,6 +873,8 @@ void App::generateDrawList()
         // recalculate world AABB
         const auto& meshAABB = meshes[object.meshIdx].aabb;
         const auto tm = object.transform.asMatrix();
+        object.worldAABB = util::calculateWorldAABB(meshAABB, tm);
+
         const auto distToCamera = glm::length(camera.getPosition() - object.transform.position);
 
         drawList.push_back(DrawInfo{

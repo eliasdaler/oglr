@@ -68,12 +68,6 @@ Frustum createFrustumFromVPMatrix(const glm::mat4& m)
 
 bool isInFrustum(const Frustum& frustum, const AABB& aabb)
 {
-    return true; // FIXME: IT'S BROKEN!
-
-    /* auto c = (aabb.max + aabb.min) / 2.f;
-    auto r = (aabb.max.z - aabb.min.z) / 2.f;
-    return isInFrustum(frustum, Sphere{.center = c, .radius = r}); */
-
     bool ret = true;
     for (int i = 0; i < 6; ++i) {
         const auto& plane = frustum.getPlane(i);
