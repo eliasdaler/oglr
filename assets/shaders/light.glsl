@@ -20,6 +20,9 @@ struct Light {
     // index into LightData.lightSpaceTMs if == MAX_SHADOW_CASTING_LIGHTS - no shadow
     uint lightSpaceTMsIdx;
     uint shadowMapIdx;
+
+    vec4 pointLightProjBR; // bottom-right 4 elements of point light camera projection matrix
+                         // (.x == m[2][2], .y = m[3][2], .z = m[2][3], .w = m[3][3] )
 };
 
 #endif // LIGHT_GLSL

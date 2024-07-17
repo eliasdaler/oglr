@@ -56,7 +56,7 @@ void calcPointLightLookupInfo(vec3 dir, out uint faceIdx, out vec2 uv, out float
     uv = uv * vec2(0.5, 0.5) + vec2(0.5, 0.5);
 }
 
-float calculateOcclusionPoint(vec3 fragPos, vec3 lightPos, float NoL, uint startIndex) {
+float calculateOcclusionPoint(vec3 fragPos, vec3 lightPos, float NoL, uint startIndex, vec4 pointLightProjBR) {
     uint faceIndex;
     vec2 uv;
     float currentDepth;
@@ -72,19 +72,18 @@ float calculateOcclusionPoint(vec3 fragPos, vec3 lightPos, float NoL, uint start
         uv.x = 1 - uv.x;
     }
 
-    float proj22 = -1.0100503;
-    float proj32 = -0.201005027;
-    float proj23 = -1;
-    float proj33 = 0;
-
+    // Calculate depth in light's space
+    float proj22 = pointLightProjBR.x;
+    float proj32 = pointLightProjBR.y;
+    float proj23 = pointLightProjBR.z;
+    float proj33 = pointLightProjBR.w;
     float Z = -currentDepth;
-    float z = Z*(proj22) + proj32;
-    float w = Z*(proj23) + proj33;
+    float z = Z * proj22 + proj32;
+    float w = Z * proj23 + proj33;
+    float depthBufferZ = (z/w) * 0.5 + 0.5; // from [-1;1] to [0;1]
 
     float bias = 0.001 * tan(acos(NoL));
     bias = clamp(bias, 0.0, 0.1);
-
-    float depthBufferZ = (z/w) * 0.5 + 0.5;
 
 	return texture(shadowMapTex, vec4(uv, startIndex + faceIndex, depthBufferZ - bias));
 }
@@ -108,15 +107,14 @@ void main()
         Light light = lights[idx];
 
         float occlusion = 1.0;
-        if (light.lightSpaceTMsIdx != MAX_SHADOW_CASTING_LIGHTS) {
+        if (light.shadowMapIdx != SHADOW_MAP_ARRAY_LAYERS) {
             float NoL = dot(n, normalize(light.position - fragPos));
             if (light.type == LIGHT_TYPE_SPOT) {
                 occlusion = calculateOcclusion(fragPos,
                         lightSpaceTMs[light.lightSpaceTMsIdx], NoL, light.shadowMapIdx);
-            } else {
+            } else if (light.type == LIGHT_TYPE_POINT) {
                 occlusion = calculateOcclusionPoint(fragPos, light.position,
-                        NoL, light.shadowMapIdx);
-                // fragColor.rgb += vec3(occlusion, 0.0, 0.0);
+                        NoL, light.shadowMapIdx, light.pointLightProjBR);
             }
         }
 

@@ -468,7 +468,11 @@ void App::init()
             });
         }
 
-        lights[0].position = glm::vec3{3.f, 3.5f, 2.f};
+        // lights[2].position = glm::vec3{3.f, 3.5f, 2.f};
+        // lights[2].castsShadow = false;
+
+        lights[0].position = glm::vec3{4.f, 3.5f, 4.f};
+        // lights[0].position = glm::vec3{3.f, 3.5f, 2.f};
         lights[0].castsShadow = true;
 
         addSpotLight(
@@ -482,7 +486,7 @@ void App::init()
                 .innerConeAngle = glm::radians(20.f),
                 .outerConeAngle = glm::radians(30.f),
             },
-            true // cast shadow
+            false // cast shadow
         );
 
         addSpotLight(
@@ -496,7 +500,7 @@ void App::init()
                 .innerConeAngle = glm::radians(20.f),
                 .outerConeAngle = glm::radians(30.f),
             },
-            true // cast shadow
+            false // cast shadow
         );
 
         { // int point light cameras
@@ -593,7 +597,7 @@ void App::init()
             GL_DEPTH_COMPONENT32F,
             shadowMapSize,
             shadowMapSize,
-            SHADOW_MAP_LAYERS_SIZE);
+            SHADOW_MAP_ARRAY_LAYERS);
 
         float borderColor[] = {1.0f, 1.0f, 1.0f, 1.0f};
         glTextureParameteri(shadowMapDepthTexture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
@@ -983,14 +987,24 @@ void App::generateDrawList()
     }
     std::size_t shadowMapDrawListIdx = 0;
     for (auto& light : lights) {
+        bool skipShadowDrawing = false;
         if (!light.castsShadow || light.culled) {
-            light.shadowMapDrawListIdx = MAX_SHADOW_CASTING_LIGHTS;
-            light.shadowMapIdx = SHADOW_MAP_LAYERS_SIZE;
-            continue;
+            skipShadowDrawing = true;
         }
-        if (shadowMapDrawListIdx >= MAX_SHADOW_CASTING_LIGHTS) {
+        if (light.light.type == LIGHT_TYPE_SPOT &&
+            shadowMapDrawListIdx >= MAX_SHADOW_CASTING_LIGHTS) {
+            // 1 slice won't fit into remaining space
+            skipShadowDrawing = true;
+        }
+        if (light.light.type == LIGHT_TYPE_POINT &&
+            shadowMapDrawListIdx + 5 >= SHADOW_MAP_ARRAY_LAYERS) {
+            // 6 slices won't fit into remaining space
+            skipShadowDrawing = true;
+        }
+
+        if (skipShadowDrawing) {
             light.shadowMapDrawListIdx = MAX_SHADOW_CASTING_LIGHTS;
-            light.shadowMapIdx = SHADOW_MAP_LAYERS_SIZE;
+            light.shadowMapIdx = SHADOW_MAP_ARRAY_LAYERS;
             continue;
         }
 
@@ -1018,10 +1032,9 @@ void App::generateDrawList()
                 }
                 for (const auto& drawInfo : drawList) {
                     const auto& object = objects[drawInfo.objectIdx];
-                    // if (object.alpha == 1.f && util::isInFrustum(frustum, object.worldAABB))
-                    // {
-                    shadowMapOpaqueDrawLists[shadowMapDrawListIdx].push_back(drawInfo);
-                    // }
+                    if (object.alpha == 1.f && util::isInFrustum(frustum, object.worldAABB)) {
+                        shadowMapOpaqueDrawLists[shadowMapDrawListIdx].push_back(drawInfo);
+                    }
                 }
                 ++shadowMapDrawListIdx;
             }
@@ -1104,6 +1117,10 @@ void App::uploadSceneData()
             gpuLD.lightSpaceTMsIdx = light.lightSpaceTMsIdx;
             gpuLD.shadowMapIdx = light.shadowMapIdx;
         }
+        if (light.castsShadow && light.light.type == LIGHT_TYPE_POINT) {
+            const auto& m = pointLightShadowMapCameras[0].getProjection();
+            gpuLD.pointLightProjBR = glm::vec4{m[2][2], m[3][2], m[2][3], m[3][3]};
+        }
 
         ld.lights[currentLightIndex] = gpuLD;
         ++currentLightIndex;
@@ -1156,7 +1173,7 @@ void App::renderSpotLightShadowMap(const CPULightData& lightData)
     assert(!lightData.culled);
     assert(lightData.castsShadow);
     assert(lightData.lightSpaceTMsIdx != MAX_SHADOW_CASTING_LIGHTS);
-    assert(lightData.shadowMapDrawListIdx != SHADOW_MAP_LAYERS_SIZE);
+    assert(lightData.shadowMapDrawListIdx != SHADOW_MAP_ARRAY_LAYERS);
 
     glNamedFramebufferTextureLayer(
         shadowMapFBO, GL_DEPTH_ATTACHMENT, shadowMapDepthTexture, 0, lightData.shadowMapIdx);
@@ -1179,7 +1196,7 @@ void App::renderPointLightShadowMap(const CPULightData& lightData)
 {
     assert(!lightData.culled);
     assert(lightData.castsShadow);
-    assert(lightData.shadowMapDrawListIdx != SHADOW_MAP_LAYERS_SIZE);
+    assert(lightData.shadowMapDrawListIdx != SHADOW_MAP_ARRAY_LAYERS);
 
     for (int i = 0; i < 6; ++i) {
         glNamedFramebufferTextureLayer(

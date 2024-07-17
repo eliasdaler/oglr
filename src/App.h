@@ -23,7 +23,7 @@ struct ObjectData {
 inline constexpr std::size_t MAX_LIGHTS_IN_UBO = 32;
 inline constexpr std::size_t MAX_AFFECTING_LIGHTS = 8;
 inline constexpr std::size_t MAX_SHADOW_CASTING_LIGHTS = 8;
-inline constexpr std::size_t SHADOW_MAP_LAYERS_SIZE = 64;
+inline constexpr std::size_t SHADOW_MAP_ARRAY_LAYERS = 64;
 
 struct DrawInfo {
     std::size_t objectIdx;
@@ -81,7 +81,8 @@ struct GPULightData {
     int type;
     glm::vec2 scaleOffset; // spot light only
     std::uint32_t lightSpaceTMsIdx{MAX_SHADOW_CASTING_LIGHTS};
-    std::uint32_t shadowMapIdx{SHADOW_MAP_LAYERS_SIZE};
+    std::uint32_t shadowMapIdx{SHADOW_MAP_ARRAY_LAYERS};
+    glm::vec4 pointLightProjBR;
 };
 
 struct Frustum;
@@ -201,7 +202,7 @@ private:
     std::vector<DrawInfo> opaqueDrawList;
     std::vector<DrawInfo> transparentDrawList;
 
-    std::array<std::vector<DrawInfo>, MAX_SHADOW_CASTING_LIGHTS> shadowMapOpaqueDrawLists;
+    std::array<std::vector<DrawInfo>, SHADOW_MAP_ARRAY_LAYERS> shadowMapOpaqueDrawLists;
 
     gfx::GlobalState frameStartState;
     gfx::GlobalState opaqueDrawState;
@@ -215,7 +216,7 @@ private:
 
     std::uint32_t shadowMapFBO;
     std::uint32_t shadowMapDepthTexture;
-    int shadowMapSize{2048};
+    int shadowMapSize{1024};
 
     int testFrustumToDrawIdx{0};
     Camera testFrustumToDraw;
