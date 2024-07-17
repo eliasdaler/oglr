@@ -342,12 +342,10 @@ void App::init()
             shadowMapSize,
             SHADOW_MAP_ARRAY_LAYERS);
 
-        float borderColor[] = {1.0f, 1.0f, 1.0f, 1.0f};
-        glTextureParameteri(shadowMapDepthTexture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-        glTextureParameteri(shadowMapDepthTexture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        glTextureParameteri(shadowMapDepthTexture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTextureParameteri(shadowMapDepthTexture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTextureParameteri(shadowMapDepthTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTextureParameteri(shadowMapDepthTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTextureParameterfv(shadowMapDepthTexture, GL_TEXTURE_BORDER_COLOR, borderColor);
         glTextureParameteri(
             shadowMapDepthTexture, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
 
@@ -419,6 +417,10 @@ void App::initScene()
     spawnObject({6.f, 1.f, 5.f}, cubeMeshIdx, 0, 1.f);
     // star
     spawnObject({3.f, 6.0f, 2.0f}, startMeshIdx, 0, 1.f);
+
+    spawnObject({-1.f, 4.0f, 4.0f}, startMeshIdx, 1, 1.f);
+    objects.back().transform.heading =
+        glm::angleAxis(glm::radians(90.f), glm::vec3{1.f, 0.5f, 0.f});
 
     { // init lights
         ambientColor = glm::vec3{0.3f, 0.65f, 0.8f};
