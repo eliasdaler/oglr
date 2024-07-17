@@ -300,10 +300,6 @@ void App::init()
             loadShaderProgram("assets/shaders/basic.vert", "assets/shaders/basic.frag", "world");
         assert(worldShader);
 
-        shadowCubeShader = gfx::loadShaderProgram(
-            "assets/shaders/basic.vert", "assets/shaders/shadow_cube.frag", "world");
-        assert(shadowCubeShader);
-
         depthOnlyShader = gfx::loadShaderProgram("assets/shaders/basic.vert", "", "depth_only");
         assert(depthOnlyShader);
 
@@ -446,7 +442,7 @@ void App::init()
         // lights[2].castsShadow = false;
 
         lights[0].position = glm::vec3{4.f, 3.5f, 4.f};
-        // lights[0].position = glm::vec3{3.f, 3.5f, 2.f};
+        lights[0].position = glm::vec3{3.f, 3.5f, 2.f};
         lights[0].castsShadow = true;
 
         /* addSpotLight(
@@ -607,7 +603,6 @@ void App::cleanup()
     glDeleteProgram(postFXShader);
     glDeleteProgram(solidColorShader);
     glDeleteProgram(depthOnlyShader);
-    glDeleteProgram(shadowCubeShader);
     glDeleteProgram(worldShader);
 
     glDeleteFramebuffers(1, &mainDrawFBO);
@@ -804,13 +799,12 @@ void App::render()
         gfx::setGlobalState(opaqueDrawState);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shadowMapFBO);
         glViewport(0, 0, shadowMapSize, shadowMapSize);
+        glUseProgram(depthOnlyShader);
         for (const auto& light : lights) {
             if (light.shadowMapDrawListIdx != MAX_SHADOW_CASTING_LIGHTS) {
                 if (light.light.type == LIGHT_TYPE_SPOT) {
-                    glUseProgram(depthOnlyShader);
                     renderSpotLightShadowMap(light);
                 } else if (light.light.type == LIGHT_TYPE_POINT) {
-                    glUseProgram(shadowCubeShader);
                     renderPointLightShadowMap(light);
                 }
             }

@@ -135,7 +135,6 @@ private:
     std::mt19937 rng;
 
     std::uint32_t worldShader{};
-    std::uint32_t shadowCubeShader{};
     std::uint32_t depthOnlyShader{};
     std::uint32_t solidColorShader{};
     std::uint32_t postFXShader{};
