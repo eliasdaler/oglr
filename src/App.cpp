@@ -1142,7 +1142,7 @@ void App::renderPointLightShadowMap(const CPULightData& lightData)
             lightData.camerasUboOffset + i * alignCameraDataSize,
             sizeof(CameraData));
 
-        renderSceneObjects(shadowMapOpaqueDrawLists[lightData.shadowMapDrawListIdx]);
+        renderSceneObjects(shadowMapOpaqueDrawLists[lightData.shadowMapDrawListIdx + i]);
     }
 }
 
