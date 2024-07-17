@@ -206,31 +206,6 @@ std::array<int, MAX_AFFECTING_LIGHTS> getClosestLights(
     return lightIdx;
 }
 
-void sampleCube2(const glm::vec3& dir, std::uint32_t& faceIdx, glm::vec2& uv, float& depth)
-{
-    depth = fmax(fmax(abs(dir.x), abs(dir.y)), abs(dir.z));
-    if (dir.x == depth) {
-        faceIdx = 0;
-        uv = glm::vec2(dir.z, -dir.y) / dir.x;
-    } else if (-dir.x == depth) {
-        faceIdx = 1;
-        uv = glm::vec2(-dir.z, -dir.y) / -dir.x;
-    } else if (dir.y == depth) {
-        faceIdx = 2;
-        uv = glm::vec2(-dir.x, dir.z) / dir.y;
-    } else if (-dir.y == depth) {
-        faceIdx = 3;
-        uv = glm::vec2(-dir.x, -dir.z) / -dir.y;
-    } else if (dir.z == depth) {
-        faceIdx = 4;
-        uv = glm::vec2(-dir.x, -dir.y) / dir.z;
-    } else { // if(-dir.z == depth)
-        faceIdx = 5;
-        uv = glm::vec2(dir.x, -dir.y) / -dir.z;
-    }
-    uv = uv * glm::vec2(0.5, 0.5) + glm::vec2(0.5, 0.5);
-}
-
 } // end of anonymous namespace
 
 void App::start()
@@ -376,22 +351,26 @@ void App::init()
     // ground plane
     spawnObject({}, planeMeshIdx, 2, 1.f);
 
-    spawnObject({0.f, 7.5f, 0.f}, planeMeshIdx, 2, 1.f);
-    objects.back().transform.heading =
-        glm::angleAxis(glm::radians(180.f), glm::vec3{0.f, 0.f, 1.f});
+    { // walls / ceiling
+        spawnObject({0.f, 7.5f, 0.f}, planeMeshIdx, 2, 1.f);
+        objects.back().transform.heading =
+            glm::angleAxis(glm::radians(180.f), glm::vec3{0.f, 0.f, 1.f});
 
-    spawnObject({7.5f, 0.f, 0.f}, planeMeshIdx, 2, 1.f);
-    objects.back().transform.heading = glm::angleAxis(glm::radians(90.f), glm::vec3{0.f, 0.f, 1.f});
-    spawnObject({-5.f, 0.f, 0.f}, planeMeshIdx, 2, 1.f);
-    objects.back().transform.heading =
-        glm::angleAxis(glm::radians(-90.f), glm::vec3{0.f, 0.f, 1.f});
+        spawnObject({7.5f, 0.f, 0.f}, planeMeshIdx, 2, 1.f);
+        objects.back().transform.heading =
+            glm::angleAxis(glm::radians(90.f), glm::vec3{0.f, 0.f, 1.f});
+        spawnObject({-5.f, 0.f, 0.f}, planeMeshIdx, 2, 1.f);
+        objects.back().transform.heading =
+            glm::angleAxis(glm::radians(-90.f), glm::vec3{0.f, 0.f, 1.f});
 
-    spawnObject({0.f, 0.f, 10.f}, planeMeshIdx, 2, 1.f);
-    objects.back().transform.heading =
-        glm::angleAxis(glm::radians(-90.f), glm::vec3{1.f, 0.f, 0.f});
+        spawnObject({0.f, 0.f, 10.f}, planeMeshIdx, 2, 1.f);
+        objects.back().transform.heading =
+            glm::angleAxis(glm::radians(-90.f), glm::vec3{1.f, 0.f, 0.f});
 
-    spawnObject({0.f, 0.f, -4.f}, planeMeshIdx, 2, 1.f);
-    objects.back().transform.heading = glm::angleAxis(glm::radians(90.f), glm::vec3{1.f, 0.f, 0.f});
+        spawnObject({0.f, 0.f, -4.f}, planeMeshIdx, 2, 1.f);
+        objects.back().transform.heading =
+            glm::angleAxis(glm::radians(90.f), glm::vec3{1.f, 0.f, 0.f});
+    }
 
     // some cubes
     spawnObject({0.f, 1.f, 0.f}, cubeMeshIdx, 0, 1.0f);
@@ -417,13 +396,13 @@ void App::init()
         };
 
         // generate some random floating point lights
-        std::uniform_real_distribution<float> posXZDist(-10.f, 10.f);
-        std::uniform_real_distribution<float> posYDist(1.5f, 5.0f);
+        std::uniform_real_distribution<float> posXZDist(-3.f, 3.f);
+        std::uniform_real_distribution<float> posYDist(3.f, 5.0f);
         std::uniform_real_distribution<float> rangeDist(20.f, 20.f);
         std::uniform_real_distribution<float> colorDist(0.2f, 0.9f);
-        std::uniform_real_distribution<float> rotationRadiusDist(1.f, 10.f);
+        std::uniform_real_distribution<float> rotationRadiusDist(1.f, 2.f);
         std::uniform_real_distribution<float> rotationSpeedDist(-1.5f, 1.5f);
-        for (std::size_t i = 0; i < 1; ++i) {
+        for (std::size_t i = 0; i < 4; ++i) {
             lights.push_back(CPULightData{
                 .position = {posXZDist(rng), posYDist(rng), posXZDist(rng)},
                 .light =
@@ -436,14 +415,11 @@ void App::init()
                 .rotationOrigin = {posXZDist(rng), posYDist(rng), posXZDist(rng)},
                 .rotationRadius = rotationRadiusDist(rng),
                 .rotationSpeed = rotationSpeedDist(rng),
+                .castsShadow = true,
             });
         }
 
-        lights[0].position = glm::vec3{4.f, 3.5f, 4.f};
-        lights[0].position = glm::vec3{3.f, 3.5f, 2.f};
-        lights[0].castsShadow = true;
-
-        /* addSpotLight(
+        addSpotLight(
             {-3.f, 3.5f, 2.f}, // pos
             glm::normalize(glm::vec3(1.f, -1.f, 1.f)), // dir
             Light{
@@ -469,7 +445,7 @@ void App::init()
                 .outerConeAngle = glm::radians(30.f),
             },
             true // cast shadow
-        ); */
+        );
 
         { // int point light cameras
           // <front, up>
@@ -697,7 +673,7 @@ void App::update(float dt)
     }
 
     // animate lights
-    /* for (auto& light : lights) {
+    for (auto& light : lights) {
         if (light.rotationSpeed == 0.f) {
             continue;
         }
@@ -707,7 +683,7 @@ void App::update(float dt)
         light.position.y = light.rotationOrigin.y;
         light.position.z =
             light.rotationOrigin.z + std::sin(light.rotationAngle) * light.rotationRadius;
-    } */
+    }
 
     ImGui::Begin("Debug");
 
@@ -715,15 +691,6 @@ void App::update(float dt)
     testFrustumToDrawIdx = std::clamp(testFrustumToDrawIdx, 0, 5);
 
     ImGui::DragFloat3("fragPos", glm::value_ptr(testFragPos));
-
-    {
-        const auto v = glm::normalize(testFragPos - testLightPos);
-        std::uint32_t faceIndex2;
-        float depth;
-        glm::vec2 uv2;
-        sampleCube2(v, faceIndex2, uv2, depth);
-        ImGui::Text("uv = (%.2f, %.2f), index = %d, depth = %.2f", uv2.x, uv2.y, faceIndex2, depth);
-    }
 
     ImGui::Text("Total objects: %d", (int)objects.size());
     ImGui::Text("Drawn objects: %d", (int)(opaqueDrawList.size() + transparentDrawList.size()));
@@ -1214,9 +1181,16 @@ void App::renderDebugObjects()
         }
     }
 
+    for (const auto& light : lights) {
+        debugRenderer.addLine(
+            light.position,
+            light.position + glm::vec3{0.f, 0.1f, 0.f},
+            glm::vec4{1.f, 1.f, 0.f, 1.f});
+    }
+
     // debugRenderer.addFrustumLines(spotLightCamera);
     // debugRenderer.addFrustumLines(testCamera);
-    debugRenderer.addFrustumLines(testFrustumToDraw);
+    // debugRenderer.addFrustumLines(testFrustumToDraw);
 
     {
         // const auto lightPos = lights[0].position;

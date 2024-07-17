@@ -32,6 +32,7 @@ float calculateOcclusion(vec3 fragPos, mat4 lightSpaceTM, float NoL, uint smInde
 	return texture(shadowMapTex, vec4(projCoords.xy, smIndex, currentDepth));
 }
 
+// Thanks to Jasper for supplying this function
 void calcPointLightLookupInfo(vec3 dir, out uint faceIdx, out vec2 uv, out float depth) {
     depth = max(max(abs(dir.x), abs(dir.y)), abs(dir.z));
     if (dir.x == depth) {
@@ -54,6 +55,8 @@ void calcPointLightLookupInfo(vec3 dir, out uint faceIdx, out vec2 uv, out float
         uv = vec2(dir.x, -dir.y) / -dir.z;
     }
     uv = uv * vec2(0.5, 0.5) + vec2(0.5, 0.5);
+    // OpenGL stuff:
+    uv.y = 1 - uv.y;
 }
 
 float calculateOcclusionPoint(vec3 fragPos, vec3 lightPos, float NoL, uint startIndex, vec4 pointLightProjBR) {
@@ -63,15 +66,6 @@ float calculateOcclusionPoint(vec3 fragPos, vec3 lightPos, float NoL, uint start
 
     vec3 fragToLight = fragPos - lightPos;
     calcPointLightLookupInfo(fragToLight, faceIndex, uv, currentDepth);
-
-    // TODO: fix uvs
-    // uv.y = 1 - uv.y;
-    if (faceIndex == 2 || faceIndex == 3) {
-        return 1.0;
-        // "up" and "down" have weird orientations currently
-        // uv.y = 1 - uv.y;
-        // uv.x = 1 - uv.x;
-    }
 
     // Calculate depth in light's space
     float proj22 = pointLightProjBR.x;
@@ -103,7 +97,7 @@ void main()
     // other lights
     for (int i = 0; i < MAX_AFFECTING_LIGHTS; i++) {
         int idx = lightIdx[i >> 2][i & 3];
-        if (idx > MAX_LIGHTS) { continue; }
+        if (idx >= MAX_LIGHTS) { continue; }
 
         Light light = lights[idx];
 
