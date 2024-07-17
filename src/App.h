@@ -23,6 +23,7 @@ struct ObjectData {
 inline constexpr std::size_t MAX_LIGHTS_IN_UBO = 32;
 inline constexpr std::size_t MAX_AFFECTING_LIGHTS = 8;
 inline constexpr std::size_t MAX_SHADOW_CASTING_LIGHTS = 8;
+inline constexpr std::size_t SHADOW_MAP_LAYERS_SIZE = 64;
 
 struct DrawInfo {
     std::size_t objectIdx;
@@ -58,6 +59,8 @@ struct CPULightData {
     std::size_t shadowMapDrawListIdx; // index into shadowMapOpaqueDrawLists
     std::size_t camerasUboOffset; // index into SceneData UBO camera part
     std::size_t lightSpaceTMsIdx; // index into LightData.lightSpaceTMs
+    std::uint32_t shadowMapIdx; // layer of array texture
+                                // (for point lights, index of the first slice out of 6)
 
     // animation
     glm::vec3 rotationOrigin{};
@@ -78,7 +81,7 @@ struct GPULightData {
     int type;
     glm::vec2 scaleOffset; // spot light only
     std::uint32_t lightSpaceTMsIdx{MAX_SHADOW_CASTING_LIGHTS};
-    std::uint32_t unused;
+    std::uint32_t shadowMapIdx{SHADOW_MAP_LAYERS_SIZE};
 };
 
 struct Frustum;

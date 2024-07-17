@@ -32,31 +32,6 @@ float calculateOcclusion(vec3 fragPos, mat4 lightSpaceTM, float NoL, uint smInde
 	return texture(shadowMapTex, vec4(projCoords.xy, smIndex, currentDepth));
 }
 
-vec2 sampleCube(vec3 v, out uint faceIndex)
-{
-    // https://www.gamedev.net/forums/topic/687535-implementing-a-cube-map-lookup-function/5337472/
-    // had to flip x/y axis for OpenGL, though
-    vec3 vAbs = abs(v);
-    float ma;
-    vec2 uv;
-    if (vAbs.z >= vAbs.x && vAbs.z >= vAbs.y) {
-        faceIndex = v.z < 0.0 ? 5 : 4;
-        ma = 0.5 / vAbs.z;
-        uv = vec2(v.z < 0.0 ? -v.x : v.x, -v.y);
-    } else if (vAbs.y >= vAbs.x) {
-        faceIndex = v.y < 0.0 ? 3 : 2;
-        ma = 0.5 / vAbs.y;
-        uv = vec2(v.x, v.y < 0.0 ? -v.z : v.z);
-    } else {
-        faceIndex = v.x < 0.0 ? 1 : 0;
-        ma = 0.5 / vAbs.x;
-        uv = vec2(v.x < 0.0 ? v.z : -v.z, -v.y);
-    }
-
-    uv = uv * ma + vec2(0.5f);
-    return vec2(1.f) - uv;
-}
-
 void calcPointLightLookupInfo(vec3 dir, out uint faceIdx, out vec2 uv, out float depth) {
     depth = max(max(abs(dir.x), abs(dir.y)), abs(dir.z));
     if (dir.x == depth) {
@@ -112,9 +87,6 @@ float calculateOcclusionPoint(vec3 fragPos, vec3 lightPos, float NoL, uint start
     float depthBufferZ = (z/w) * 0.5 + 0.5;
 
 	return texture(shadowMapTex, vec4(uv, startIndex + faceIndex, depthBufferZ - bias));
-    // return currentDepth / 10.0;
-    // return depthBufferZ / 10.0;
-    // return currentDepth / 100.0;
 }
 
 void main()
@@ -126,11 +98,7 @@ void main()
 
     fragColor.rgb = vec3(0.f, 0.f, 0.f);
 
-    // fragColor.rgb += calculateLight(fragPos, n, v, diffuse, sunLight, 1.0);
-
-    // float NoL = dot(n, normalize(spotLight.position - fragPos));
-    // float occlusion = calculateOcclusion(fragPos, spotLightSpaceTM, NoL);
-    // fragColor.rgb += calculateLight(fragPos, n, v, diffuse, spotLight, occlusion);
+    fragColor.rgb += calculateLight(fragPos, n, v, diffuse, sunLight, 1.0);
 
     // other lights
     for (int i = 0; i < MAX_AFFECTING_LIGHTS; i++) {
@@ -144,10 +112,10 @@ void main()
             float NoL = dot(n, normalize(light.position - fragPos));
             if (light.type == LIGHT_TYPE_SPOT) {
                 occlusion = calculateOcclusion(fragPos,
-                        lightSpaceTMs[light.lightSpaceTMsIdx], NoL, light.lightSpaceTMsIdx);
+                        lightSpaceTMs[light.lightSpaceTMsIdx], NoL, light.shadowMapIdx);
             } else {
                 occlusion = calculateOcclusionPoint(fragPos, light.position,
-                        NoL, light.lightSpaceTMsIdx);
+                        NoL, light.shadowMapIdx);
                 // fragColor.rgb += vec3(occlusion, 0.0, 0.0);
             }
         }
@@ -156,8 +124,6 @@ void main()
     }
 
     fragColor.rgb += diffuse * ambientColor * ambientIntensity;
-
-    // fragColor.rgb = fragPos;
 
     // gobo
     /* vec4 fragPosLightSpace = spotLightSpaceTM * vec4(fragPos, 1.f);

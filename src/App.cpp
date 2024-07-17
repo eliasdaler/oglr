@@ -471,7 +471,7 @@ void App::init()
         lights[0].position = glm::vec3{3.f, 3.5f, 2.f};
         lights[0].castsShadow = true;
 
-        /* addSpotLight(
+        addSpotLight(
             {-3.f, 3.5f, 2.f}, // pos
             glm::normalize(glm::vec3(1.f, -1.f, 1.f)), // dir
             Light{
@@ -483,9 +483,9 @@ void App::init()
                 .outerConeAngle = glm::radians(30.f),
             },
             true // cast shadow
-        ); */
+        );
 
-        /* addSpotLight(
+        addSpotLight(
             {2.f, 5.0f, -1.f}, // pos
             glm::normalize(glm::vec3(-0.5f, -1.f, 0.75f)), // dir
             Light{
@@ -497,7 +497,7 @@ void App::init()
                 .outerConeAngle = glm::radians(30.f),
             },
             true // cast shadow
-        ); */
+        );
 
         { // int point light cameras
           // <front, up>
@@ -593,7 +593,7 @@ void App::init()
             GL_DEPTH_COMPONENT32F,
             shadowMapSize,
             shadowMapSize,
-            MAX_SHADOW_CASTING_LIGHTS);
+            SHADOW_MAP_LAYERS_SIZE);
 
         float borderColor[] = {1.0f, 1.0f, 1.0f, 1.0f};
         glTextureParameteri(shadowMapDepthTexture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
@@ -985,10 +985,12 @@ void App::generateDrawList()
     for (auto& light : lights) {
         if (!light.castsShadow || light.culled) {
             light.shadowMapDrawListIdx = MAX_SHADOW_CASTING_LIGHTS;
+            light.shadowMapIdx = SHADOW_MAP_LAYERS_SIZE;
             continue;
         }
         if (shadowMapDrawListIdx >= MAX_SHADOW_CASTING_LIGHTS) {
             light.shadowMapDrawListIdx = MAX_SHADOW_CASTING_LIGHTS;
+            light.shadowMapIdx = SHADOW_MAP_LAYERS_SIZE;
             continue;
         }
 
@@ -996,6 +998,7 @@ void App::generateDrawList()
             const auto spotLightFrustum =
                 util::createFrustumFromVPMatrix(light.lightSpaceProj * light.lightSpaceView);
             light.shadowMapDrawListIdx = shadowMapDrawListIdx;
+            light.shadowMapIdx = shadowMapDrawListIdx;
             for (const auto& drawInfo : drawList) {
                 const auto& object = objects[drawInfo.objectIdx];
                 if (object.alpha == 1.f && util::isInFrustum(spotLightFrustum, object.worldAABB)) {
@@ -1005,6 +1008,7 @@ void App::generateDrawList()
             ++shadowMapDrawListIdx;
         } else {
             light.shadowMapDrawListIdx = shadowMapDrawListIdx;
+            light.shadowMapIdx = shadowMapDrawListIdx;
             for (int i = 0; i < 6; ++i) {
                 auto cam = pointLightShadowMapCameras[i];
                 cam.setPosition(light.position);
@@ -1014,7 +1018,8 @@ void App::generateDrawList()
                 }
                 for (const auto& drawInfo : drawList) {
                     const auto& object = objects[drawInfo.objectIdx];
-                    // if (object.alpha == 1.f && util::isInFrustum(frustum, object.worldAABB)) {
+                    // if (object.alpha == 1.f && util::isInFrustum(frustum, object.worldAABB))
+                    // {
                     shadowMapOpaqueDrawLists[shadowMapDrawListIdx].push_back(drawInfo);
                     // }
                 }
@@ -1097,6 +1102,7 @@ void App::uploadSceneData()
         auto gpuLD = toGPULightData(light.position, light.direction, light.light);
         if (light.castsShadow) {
             gpuLD.lightSpaceTMsIdx = light.lightSpaceTMsIdx;
+            gpuLD.shadowMapIdx = light.shadowMapIdx;
         }
 
         ld.lights[currentLightIndex] = gpuLD;
@@ -1149,15 +1155,11 @@ void App::renderSpotLightShadowMap(const CPULightData& lightData)
 {
     assert(!lightData.culled);
     assert(lightData.castsShadow);
-    assert(lightData.shadowMapDrawListIdx != MAX_SHADOW_CASTING_LIGHTS);
-    assert(lightData.shadowMapDrawListIdx == lightData.lightSpaceTMsIdx);
+    assert(lightData.lightSpaceTMsIdx != MAX_SHADOW_CASTING_LIGHTS);
+    assert(lightData.shadowMapDrawListIdx != SHADOW_MAP_LAYERS_SIZE);
 
     glNamedFramebufferTextureLayer(
-        shadowMapFBO,
-        GL_DEPTH_ATTACHMENT,
-        shadowMapDepthTexture,
-        0,
-        lightData.shadowMapDrawListIdx);
+        shadowMapFBO, GL_DEPTH_ATTACHMENT, shadowMapDepthTexture, 0, lightData.shadowMapIdx);
 
     // clear
     GLfloat depthValue{1.f};
@@ -1177,7 +1179,7 @@ void App::renderPointLightShadowMap(const CPULightData& lightData)
 {
     assert(!lightData.culled);
     assert(lightData.castsShadow);
-    assert(lightData.shadowMapDrawListIdx != MAX_SHADOW_CASTING_LIGHTS);
+    assert(lightData.shadowMapDrawListIdx != SHADOW_MAP_LAYERS_SIZE);
 
     for (int i = 0; i < 6; ++i) {
         glNamedFramebufferTextureLayer(
@@ -1185,7 +1187,7 @@ void App::renderPointLightShadowMap(const CPULightData& lightData)
             GL_DEPTH_ATTACHMENT,
             shadowMapDepthTexture,
             0,
-            lightData.shadowMapDrawListIdx + i);
+            lightData.shadowMapIdx + i);
 
         // clear
         GLfloat depthValue{1.f};
@@ -1246,11 +1248,10 @@ void App::renderDebugObjects()
 
         float originLength = 0.25f;
         debugRenderer
-            .addLine(v, v + glm::vec3{1.f, 0.f, 0.f} * originLength, glm::vec4{1.f, 0.f, 0.f, 1.f});
-        debugRenderer
-            .addLine(v, v + glm::vec3{0.f, 1.f, 0.f} * originLength, glm::vec4{0.f, 1.f, 0.f, 1.f});
-        debugRenderer
-            .addLine(v, v + glm::vec3{0.f, 0.f, 1.f} * originLength, glm::vec4{0.f, 0.f, 1.f, 1.f});
+            .addLine(v, v + glm::vec3{1.f, 0.f, 0.f} * originLength, glm::vec4{1.f, 0.f,
+        0.f, 1.f}); debugRenderer .addLine(v, v + glm::vec3{0.f, 1.f, 0.f} * originLength,
+        glm::vec4{0.f, 1.f, 0.f, 1.f}); debugRenderer .addLine(v, v + glm::vec3{0.f, 0.f, 1.f} *
+        originLength, glm::vec4{0.f, 0.f, 1.f, 1.f});
 
         const auto cubeAABB = AABB{
             .min = glm::vec3(glm::vec3{-1.f}),

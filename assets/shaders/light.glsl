@@ -18,9 +18,8 @@ struct Light {
 
     vec2 scaleOffset; // spot light only
     // index into LightData.lightSpaceTMs if == MAX_SHADOW_CASTING_LIGHTS - no shadow
-    // (also corresponds to layer of shadow map array texture)
     uint lightSpaceTMsIdx;
-    uint unused;
+    uint shadowMapIdx;
 };
 
 #endif // LIGHT_GLSL
