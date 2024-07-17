@@ -10,7 +10,7 @@ layout (binding = 0, std140) uniform CameraData
 
 #define MAX_LIGHTS 32
 #define MAX_AFFECTING_LIGHTS 8
-#define MAX_SHADOW_CASTING_LIGHTS 8
+#define MAX_SHADOW_CASTING_LIGHTS 32
 #define SHADOW_MAP_ARRAY_LAYERS 64
 
 layout (binding = 1, std140) uniform LightData
@@ -19,8 +19,8 @@ layout (binding = 1, std140) uniform LightData
     float ambientIntensity;
 
     Light sunLight;
-    mat4 lightSpaceTMs[MAX_SHADOW_CASTING_LIGHTS];
 
+    mat4 lightSpaceTMs[MAX_SHADOW_CASTING_LIGHTS];
     Light lights[MAX_LIGHTS];
 };
 

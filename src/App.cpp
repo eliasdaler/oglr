@@ -89,75 +89,6 @@ void sortDrawList(std::vector<DrawInfo>& drawList, SortOrder sortOrder)
         });
 }
 
-glm::vec2 calculateSpotLightScaleOffset(float innerConeAngle, float outerConeAngle)
-{
-    // See KHR_lights_punctual spec - formulas are taken from it
-    glm::vec2 scaleOffset;
-    scaleOffset.x = 1.f / std::max(0.001f, std::cos(innerConeAngle) - std::cos(outerConeAngle));
-    scaleOffset.y = -std::cos(outerConeAngle) * scaleOffset.x;
-    return scaleOffset;
-}
-
-GPULightData toGPULightData(const glm::vec3& pos, const glm::vec3& dir, const Light& light)
-{
-    auto ld = GPULightData{
-        .position = pos,
-        .intensity = light.intensity,
-        .dir = dir,
-        .range = light.range,
-        .color = glm::vec3(light.color),
-        .type = light.type,
-    };
-    if (ld.type == LIGHT_TYPE_SPOT) {
-        ld.scaleOffset = calculateSpotLightScaleOffset(light.innerConeAngle, light.outerConeAngle);
-    }
-    return ld;
-}
-
-Camera makeSpotLightCamera(
-    const glm::vec3& position,
-    const glm::vec3& direction,
-    float range,
-    float outerConeAngle)
-{
-    const auto fovX = outerConeAngle * 2;
-    const auto zNear = 0.1f;
-    const auto zFar = range;
-    Camera spotLightCamera;
-    spotLightCamera.init(fovX, zNear, zFar, 1.f);
-    spotLightCamera.setPosition(position);
-
-    // need - in quatLookAt because it assumes -Z forward
-    if (std::abs(glm::dot(direction, math::GLOBAL_UP_DIR)) > 0.9999f) {
-        spotLightCamera.setHeading(glm::quatLookAt(direction, math::GLOBAL_FORWARD_DIR));
-    } else {
-        spotLightCamera.setHeading(glm::quatLookAt(direction, math::GLOBAL_UP_DIR));
-    }
-
-    return spotLightCamera;
-}
-
-bool shouldCullLight(const Frustum& frustum, const CPULightData& lightData)
-{
-    auto& light = lightData.light;
-    if (light.type == LIGHT_TYPE_DIRECTIONAL) {
-        return false;
-    }
-
-    if (light.type == LIGHT_TYPE_POINT) {
-        Sphere s{.center = lightData.position, .radius = light.range};
-        return !util::isInFrustum(frustum, s);
-    }
-
-    // Spot light
-    const auto spotLightPoints = util::calculateFrustumCornersWorldSpace(
-        lightData.lightSpaceProj * lightData.lightSpaceView);
-    std::vector<glm::vec3> points;
-    points.assign(spotLightPoints.begin(), spotLightPoints.end());
-    const auto aabb = util::calculateAABB(points);
-    return !util::isInFrustum(frustum, aabb);
-}
-
 std::array<int, MAX_AFFECTING_LIGHTS> getClosestLights(
     const glm::vec3& objPos,
     const std::vector<CPULightData>& lights)
@@ -288,10 +219,10 @@ void App::init()
     }
 
     { // allocate scene data buffer
-        const auto cameraDataSize = gfx::getAlignedSize(sizeof(CameraData), uboAlignment);
-        const auto lightDataSize = gfx::getAlignedSize(sizeof(LightData), uboAlignment);
+        const auto cameraDataSize = gfx::getAlignedSize(sizeof(UBOCameraData), uboAlignment);
+        const auto lightDataSize = gfx::getAlignedSize(sizeof(UBOLightData), uboAlignment);
         const auto perObjectDataElementSize =
-            gfx::getAlignedSize(sizeof(PerObjectData), uboAlignment);
+            gfx::getAlignedSize(sizeof(UBOPerObjectData), uboAlignment);
         const auto bufSize =
             cameraDataSize * MAX_CAMERAS_IN_UBO + lightDataSize + perObjectDataElementSize * 100;
         sceneDataBuffer = gfx::allocateBuffer(bufSize, nullptr, "sceneData");
@@ -322,10 +253,10 @@ void App::init()
         meshes.push_back(gfx::uploadMeshToGPU(util::getStarMesh()));
         meshes.push_back(gfx::uploadMeshToGPU(util::getPlaneMesh(100, 50)));
 
-        // TODO: something better?
         randomSpawnMeshes = {0, 1};
         randomSpawnTextures = {0, 1};
         cubeMeshIdx = 0;
+        startMeshIdx = 1;
         planeMeshIdx = 2;
     }
 
@@ -339,130 +270,6 @@ void App::init()
     }
 
     testCamera = camera;
-
-    // ground plane
-    spawnObject({}, planeMeshIdx, 2, 1.f);
-
-    { // walls / ceiling
-        spawnObject({0.f, 7.5f, 0.f}, planeMeshIdx, 2, 1.f);
-        objects.back().transform.heading =
-            glm::angleAxis(glm::radians(180.f), glm::vec3{0.f, 0.f, 1.f});
-
-        spawnObject({7.5f, 0.f, 0.f}, planeMeshIdx, 2, 1.f);
-        objects.back().transform.heading =
-            glm::angleAxis(glm::radians(90.f), glm::vec3{0.f, 0.f, 1.f});
-        spawnObject({-5.f, 0.f, 0.f}, planeMeshIdx, 2, 1.f);
-        objects.back().transform.heading =
-            glm::angleAxis(glm::radians(-90.f), glm::vec3{0.f, 0.f, 1.f});
-
-        spawnObject({0.f, 0.f, 10.f}, planeMeshIdx, 2, 1.f);
-        objects.back().transform.heading =
-            glm::angleAxis(glm::radians(-90.f), glm::vec3{1.f, 0.f, 0.f});
-
-        spawnObject({0.f, 0.f, -4.f}, planeMeshIdx, 2, 1.f);
-        objects.back().transform.heading =
-            glm::angleAxis(glm::radians(90.f), glm::vec3{1.f, 0.f, 0.f});
-    }
-
-    // some cubes
-    spawnObject({0.f, 1.f, 0.f}, cubeMeshIdx, 0, 1.0f);
-    spawnObject({0.f, 1.f, 2.5f}, cubeMeshIdx, 1, 1.f);
-    spawnObject({0.f, 1.f, 5.f}, cubeMeshIdx, 0, 1.f);
-    spawnObject({0.f, 1.f, 7.5f}, cubeMeshIdx, 1, 1.f);
-
-    spawnObject({6.f, 1.f, 2.5f}, cubeMeshIdx, 1, 1.f);
-    spawnObject({6.f, 1.f, 5.f}, cubeMeshIdx, 0, 1.f);
-    // star
-    spawnObject({3.f, 6.0f, 2.0f}, 1, 0, 1.f);
-    // spawnObject({0.f, 0.3f, 7.5f}, 1, 1, 1.f);
-
-    { // init lights
-        ambientColor = glm::vec3{0.3f, 0.65f, 0.8f};
-        ambientIntensity = 0.1f;
-
-        sunLightDir = glm::normalize(glm::vec3(1.f, -1.f, 1.f));
-        sunLight = Light{
-            .type = LIGHT_TYPE_DIRECTIONAL,
-            .color = glm::vec4{0.65f, 0.4f, 0.3f, 1.f},
-            .intensity = 0.15f,
-        };
-
-        // generate some random floating point lights
-        std::uniform_real_distribution<float> posXZDist(-3.f, 3.f);
-        std::uniform_real_distribution<float> posYDist(3.f, 5.0f);
-        std::uniform_real_distribution<float> rangeDist(20.f, 20.f);
-        std::uniform_real_distribution<float> colorDist(0.2f, 0.9f);
-        std::uniform_real_distribution<float> rotationRadiusDist(1.f, 2.f);
-        std::uniform_real_distribution<float> rotationSpeedDist(-1.5f, 1.5f);
-        for (std::size_t i = 0; i < 4; ++i) {
-            lights.push_back(CPULightData{
-                .position = {posXZDist(rng), posYDist(rng), posXZDist(rng)},
-                .light =
-                    Light{
-                        .type = LIGHT_TYPE_POINT,
-                        .color = {colorDist(rng), colorDist(rng), colorDist(rng), 1.f},
-                        .intensity = 10.f,
-                        .range = rangeDist(rng),
-                    },
-                .rotationOrigin = {posXZDist(rng), posYDist(rng), posXZDist(rng)},
-                .rotationRadius = rotationRadiusDist(rng),
-                .rotationSpeed = rotationSpeedDist(rng),
-                .castsShadow = true,
-            });
-        }
-
-        addSpotLight(
-            {-3.f, 3.5f, 2.f}, // pos
-            glm::normalize(glm::vec3(1.f, -1.f, 1.f)), // dir
-            Light{
-                .type = LIGHT_TYPE_SPOT,
-                .color = glm::vec4{1.f, 1.f, 1.f, 1.f},
-                .intensity = 1.f,
-                .range = 20.f,
-                .innerConeAngle = glm::radians(20.f),
-                .outerConeAngle = glm::radians(30.f),
-            },
-            true // cast shadow
-        );
-
-        addSpotLight(
-            {2.f, 5.0f, -1.f}, // pos
-            glm::normalize(glm::vec3(-0.5f, -1.f, 0.75f)), // dir
-            Light{
-                .type = LIGHT_TYPE_SPOT,
-                .color = glm::vec4{1.f, 0.f, 1.f, 1.f},
-                .intensity = 1.f,
-                .range = 30.f,
-                .innerConeAngle = glm::radians(20.f),
-                .outerConeAngle = glm::radians(30.f),
-            },
-            true // cast shadow
-        );
-
-        { // int point light cameras
-          // <front, up>
-            const auto aspect = 1.f; // shadow maps are square
-            const auto nearPlane = 0.1f;
-            const auto pointLightMaxRange = 20.f;
-            const auto farPlane = pointLightMaxRange;
-
-            static const std::array<std::pair<glm::vec3, glm::vec3>, 6> shadowDirections{{
-                {{1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}}, // posx
-                {{-1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}}, // negx
-                {{0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}}, // posy
-                {{0.0, -1.0, 0.0}, {0.0, 0.0, -1.0}}, // negy
-                {{0.0, 0.0, 1.0}, {0.0, 1.0, 0.0}}, // posz
-                {{0.0, 0.0, -1.0}, {0.0, 1.0, 0.0}}, // negz
-            }};
-
-            for (int i = 0; i < 6; ++i) {
-                auto& camera = pointLightShadowMapCameras[i];
-                camera.setHeading(
-                    glm::quatLookAt(shadowDirections[i].first, shadowDirections[i].second));
-                camera.init(glm::radians(90.0f), nearPlane, farPlane, aspect);
-            }
-        }
-    }
 
     frameStartState = gfx::GlobalState{
         .depthTestEnabled = false,
@@ -549,10 +356,133 @@ void App::init()
             shadowMapFBO, GL_DEPTH_ATTACHMENT, shadowMapDepthTexture, 0, 0);
     }
 
-    testFragPos = glm::vec3{1.f, 0.517, 0.28627};
+    { // int point light cameras
+        const auto aspect = 1.f; // shadow maps are square
+        const auto nearPlane = 0.1f;
+        const auto pointLightMaxRange = 20.f;
+        const auto farPlane = pointLightMaxRange;
 
-    testFragPos = glm::vec3{0.f, 0.f, 1.f};
-    testLightPos = glm::vec3{};
+        // <front, up>
+        static const std::array<std::pair<glm::vec3, glm::vec3>, 6> shadowDirections{{
+            {{1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}}, // posx
+            {{-1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}}, // negx
+            {{0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}}, // posy
+            {{0.0, -1.0, 0.0}, {0.0, 0.0, -1.0}}, // negy
+            {{0.0, 0.0, 1.0}, {0.0, 1.0, 0.0}}, // posz
+            {{0.0, 0.0, -1.0}, {0.0, 1.0, 0.0}}, // negz
+        }};
+
+        for (int i = 0; i < 6; ++i) {
+            auto& camera = pointLightShadowMapCameras[i];
+            camera.setHeading(
+                glm::quatLookAt(shadowDirections[i].first, shadowDirections[i].second));
+            camera.init(glm::radians(90.0f), nearPlane, farPlane, aspect);
+        }
+    }
+
+    initScene();
+}
+
+void App::initScene()
+{
+    // ground plane
+    spawnObject({}, planeMeshIdx, planeMeshIdx, 1.f);
+
+    { // walls / ceiling
+        spawnObject({0.f, 7.5f, 0.f}, planeMeshIdx, 2, 1.f);
+        objects.back().transform.heading =
+            glm::angleAxis(glm::radians(180.f), glm::vec3{0.f, 0.f, 1.f});
+
+        spawnObject({7.5f, 0.f, 0.f}, planeMeshIdx, 2, 1.f);
+        objects.back().transform.heading =
+            glm::angleAxis(glm::radians(90.f), glm::vec3{0.f, 0.f, 1.f});
+        spawnObject({-5.f, 0.f, 0.f}, planeMeshIdx, 2, 1.f);
+        objects.back().transform.heading =
+            glm::angleAxis(glm::radians(-90.f), glm::vec3{0.f, 0.f, 1.f});
+
+        spawnObject({0.f, 0.f, 10.f}, planeMeshIdx, 2, 1.f);
+        objects.back().transform.heading =
+            glm::angleAxis(glm::radians(-90.f), glm::vec3{1.f, 0.f, 0.f});
+
+        spawnObject({0.f, 0.f, -4.f}, planeMeshIdx, 2, 1.f);
+        objects.back().transform.heading =
+            glm::angleAxis(glm::radians(90.f), glm::vec3{1.f, 0.f, 0.f});
+    }
+
+    // some cubes
+    spawnObject({0.f, 1.f, 0.f}, cubeMeshIdx, 0, 1.0f);
+    spawnObject({0.f, 1.f, 2.5f}, cubeMeshIdx, 1, 1.f);
+    spawnObject({0.f, 1.f, 5.f}, cubeMeshIdx, 0, 1.f);
+    spawnObject({0.f, 1.f, 7.5f}, cubeMeshIdx, 1, 1.f);
+
+    spawnObject({6.f, 1.f, 2.5f}, cubeMeshIdx, 1, 1.f);
+    spawnObject({6.f, 1.f, 5.f}, cubeMeshIdx, 0, 1.f);
+    // star
+    spawnObject({3.f, 6.0f, 2.0f}, startMeshIdx, 0, 1.f);
+
+    { // init lights
+        ambientColor = glm::vec3{0.3f, 0.65f, 0.8f};
+        ambientIntensity = 0.1f;
+
+        sunLightDir = glm::normalize(glm::vec3(1.f, -1.f, 1.f));
+        sunLight = Light{
+            .type = LIGHT_TYPE_DIRECTIONAL,
+            .color = glm::vec4{0.65f, 0.4f, 0.3f, 1.f},
+            .intensity = 0.15f,
+        };
+
+        // generate some random floating point lights
+        std::uniform_real_distribution<float> posXZDist(-3.f, 3.f);
+        std::uniform_real_distribution<float> posYDist(3.f, 5.0f);
+        std::uniform_real_distribution<float> rangeDist(20.f, 20.f);
+        std::uniform_real_distribution<float> colorDist(0.2f, 0.9f);
+        std::uniform_real_distribution<float> rotationRadiusDist(1.f, 2.f);
+        std::uniform_real_distribution<float> rotationSpeedDist(-1.5f, 1.5f);
+        for (std::size_t i = 0; i < 4; ++i) {
+            lights.push_back(CPULightData{
+                .position = {posXZDist(rng), posYDist(rng), posXZDist(rng)},
+                .light =
+                    Light{
+                        .type = LIGHT_TYPE_POINT,
+                        .color = {colorDist(rng), colorDist(rng), colorDist(rng), 1.f},
+                        .intensity = 10.f,
+                        .range = rangeDist(rng),
+                    },
+                .rotationOrigin = {posXZDist(rng), posYDist(rng), posXZDist(rng)},
+                .rotationRadius = rotationRadiusDist(rng),
+                .rotationSpeed = rotationSpeedDist(rng),
+                .castsShadow = true,
+            });
+        }
+
+        addSpotLight(
+            {-3.f, 3.5f, 2.f}, // pos
+            glm::normalize(glm::vec3(1.f, -1.f, 1.f)), // dir
+            Light{
+                .type = LIGHT_TYPE_SPOT,
+                .color = glm::vec4{1.f, 1.f, 1.f, 1.f},
+                .intensity = 1.f,
+                .range = 20.f,
+                .innerConeAngle = glm::radians(20.f),
+                .outerConeAngle = glm::radians(30.f),
+            },
+            true // cast shadow
+        );
+
+        addSpotLight(
+            {2.f, 5.0f, -1.f}, // pos
+            glm::normalize(glm::vec3(-0.5f, -1.f, 0.75f)), // dir
+            Light{
+                .type = LIGHT_TYPE_SPOT,
+                .color = glm::vec4{1.f, 0.f, 1.f, 1.f},
+                .intensity = 1.f,
+                .range = 30.f,
+                .innerConeAngle = glm::radians(20.f),
+                .outerConeAngle = glm::radians(30.f),
+            },
+            true // cast shadow
+        );
+    }
 }
 
 void App::cleanup()
@@ -679,11 +609,6 @@ void App::update(float dt)
 
     ImGui::Begin("Debug");
 
-    ImGui::InputInt("test frustum", &testFrustumToDrawIdx);
-    testFrustumToDrawIdx = std::clamp(testFrustumToDrawIdx, 0, 5);
-
-    ImGui::DragFloat3("fragPos", glm::value_ptr(testFragPos));
-
     ImGui::Text("Total objects: %d", (int)objects.size());
     ImGui::Text("Drawn objects: %d", (int)(opaqueDrawList.size() + transparentDrawList.size()));
 
@@ -758,18 +683,22 @@ void App::render()
         glViewport(0, 0, shadowMapSize, shadowMapSize);
         glUseProgram(depthOnlyShader);
         for (const auto& light : lights) {
-            if (light.shadowMapDrawListIdx != MAX_SHADOW_CASTING_LIGHTS) {
-                if (light.light.type == LIGHT_TYPE_SPOT) {
-                    renderSpotLightShadowMap(light);
-                } else if (light.light.type == LIGHT_TYPE_POINT) {
-                    renderPointLightShadowMap(light);
-                }
+            if (light.shadowMapDrawListIdx == MAX_SHADOW_CASTING_LIGHTS) {
+                continue;
+            }
+
+            if (light.light.type == LIGHT_TYPE_SPOT) {
+                renderSpotLightShadowMap(light);
+            } else if (light.light.type == LIGHT_TYPE_POINT) {
+                renderPointLightShadowMap(light);
             }
         }
     }
 
-    {
+    { // draw scene
+        GL_DEBUG_GROUP("Draw world");
         gfx::setGlobalState(frameStartState);
+
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, mainDrawFBO);
         glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
         // clear fbo buffers
@@ -797,13 +726,13 @@ void App::render()
             CAMERA_DATA_BINDING,
             sceneDataBuffer.buffer,
             mainCameraUboOffset,
-            sizeof(CameraData));
+            sizeof(UBOCameraData));
         glBindBufferRange(
             GL_UNIFORM_BUFFER,
             LIGHT_DATA_BINDING,
             sceneDataBuffer.buffer,
             lightDataUboOffset,
-            sizeof(LightData));
+            sizeof(UBOLightData));
 
         glUseProgram(worldShader);
 
@@ -884,6 +813,7 @@ void App::generateDrawList()
         });
     }
 
+    // important to do it here - draw lists rely on UBO offsets produces by this function
     uploadSceneData();
 
     // separate into opaque and transparent lists
@@ -905,10 +835,15 @@ void App::generateDrawList()
     sortDrawList(opaqueDrawList, SortOrder::FrontToBack);
     sortDrawList(transparentDrawList, SortOrder::BackToFront);
 
-    // shadow map draw lists
+    generateShadowMapDrawList();
+}
+
+void App::generateShadowMapDrawList()
+{
     for (auto& dl : shadowMapOpaqueDrawLists) {
         dl.clear();
     }
+
     std::size_t shadowMapDrawListIdx = 0;
     for (auto& light : lights) {
         bool skipShadowDrawing = false;
@@ -933,10 +868,11 @@ void App::generateDrawList()
         }
 
         if (light.light.type == LIGHT_TYPE_SPOT) {
-            const auto spotLightFrustum =
-                util::createFrustumFromVPMatrix(light.lightSpaceProj * light.lightSpaceView);
             light.shadowMapDrawListIdx = shadowMapDrawListIdx;
             light.shadowMapIdx = shadowMapDrawListIdx;
+
+            const auto spotLightFrustum =
+                util::createFrustumFromVPMatrix(light.lightSpaceProj * light.lightSpaceView);
             for (const auto& drawInfo : drawList) {
                 const auto& object = objects[drawInfo.objectIdx];
                 if (object.alpha == 1.f && util::isInFrustum(spotLightFrustum, object.worldAABB)) {
@@ -944,16 +880,14 @@ void App::generateDrawList()
                 }
             }
             ++shadowMapDrawListIdx;
-        } else {
+        } else if (light.light.type == LIGHT_TYPE_POINT) {
             light.shadowMapDrawListIdx = shadowMapDrawListIdx;
             light.shadowMapIdx = shadowMapDrawListIdx;
+
             for (int i = 0; i < 6; ++i) {
                 auto cam = pointLightShadowMapCameras[i];
                 cam.setPosition(light.position);
                 const auto frustum = util::createFrustumFromVPMatrix(cam.getViewProj());
-                if (i == testFrustumToDrawIdx) {
-                    testFrustumToDraw = cam;
-                }
                 for (const auto& drawInfo : drawList) {
                     const auto& object = objects[drawInfo.objectIdx];
                     if (object.alpha == 1.f && util::isInFrustum(frustum, object.worldAABB)) {
@@ -970,16 +904,12 @@ void App::uploadSceneData()
 {
     sceneData.clear();
 
-    // global scene data
-    const auto projection = camera.getProjection();
-    const auto view = camera.getView();
-
     std::size_t currentCameraIdxUbo = 0;
 
-    // main cam
-    const auto cd = CameraData{
-        .projection = projection,
-        .view = view,
+    // main camera
+    const auto cd = UBOCameraData{
+        .projection = camera.getProjection(),
+        .view = camera.getView(),
         .cameraPos = glm::vec4{camera.getPosition(), 0.f},
     };
     mainCameraUboOffset = sceneData.append(cd, uboAlignment);
@@ -996,7 +926,7 @@ void App::uploadSceneData()
         }
 
         if (light.light.type == LIGHT_TYPE_SPOT) {
-            const auto cd = CameraData{
+            const auto cd = UBOCameraData{
                 .projection = light.lightSpaceProj,
                 .view = light.lightSpaceView,
                 .cameraPos = glm::vec4{light.position, 0.f},
@@ -1007,7 +937,7 @@ void App::uploadSceneData()
             for (int i = 0; i < 6; ++i) {
                 auto cam = pointLightShadowMapCameras[i];
                 cam.setPosition(light.position);
-                const auto cd = CameraData{
+                const auto cd = UBOCameraData{
                     .projection = cam.getProjection(),
                     .view = cam.getView(),
                     .cameraPos = glm::vec4{cam.getPosition(), 0.f},
@@ -1021,36 +951,14 @@ void App::uploadSceneData()
         }
     }
 
-    auto ld = LightData{
+    auto ld = UBOLightData{
         // ambient
         .ambientColor = glm::vec3{ambientColor},
         .ambientIntensity = ambientIntensity,
         .sunLight = toGPULightData({}, sunLightDir, sunLight),
     };
 
-    // other lights
-    assert(lights.size() <= MAX_LIGHTS_IN_UBO);
-    std::size_t currentLightIndex = 0;
-    for (const auto& light : lights) {
-        if (light.culled) {
-            continue;
-        }
-
-        auto gpuLD = toGPULightData(light.position, light.direction, light.light);
-        if (light.castsShadow) {
-            gpuLD.lightSpaceTMsIdx = light.lightSpaceTMsIdx;
-            gpuLD.shadowMapIdx = light.shadowMapIdx;
-        }
-        if (light.castsShadow && light.light.type == LIGHT_TYPE_POINT) {
-            const auto& m = pointLightShadowMapCameras[0].getProjection();
-            gpuLD.pointLightProjBR = glm::vec4{m[2][2], m[3][2], m[2][3], m[3][3]};
-        }
-
-        ld.lights[currentLightIndex] = gpuLD;
-        ++currentLightIndex;
-    }
-
-    // light space TMs
+    // light space TMs (spot lights)
     std::size_t currentTMIdx = 0;
     for (auto& light : lights) {
         if (!light.castsShadow || light.culled) {
@@ -1067,12 +975,35 @@ void App::uploadSceneData()
         ++currentTMIdx;
     }
 
+    // lights
+    assert(lights.size() <= MAX_LIGHTS_IN_UBO);
+    std::size_t currentLightIndex = 0;
+    for (const auto& light : lights) {
+        if (light.culled) {
+            continue;
+        }
+
+        auto gpuLD = toGPULightData(light.position, light.direction, light.light);
+        if (light.castsShadow) {
+            gpuLD.lightSpaceTMsIdx = light.lightSpaceTMsIdx;
+            gpuLD.shadowMapIdx = light.shadowMapIdx;
+        }
+        if (light.castsShadow && light.light.type == LIGHT_TYPE_POINT) {
+            // all point light cameras have the same projection
+            const auto& m = pointLightShadowMapCameras[0].getProjection();
+            gpuLD.pointLightProjBR = glm::vec4{m[2][2], m[3][2], m[2][3], m[3][3]};
+        }
+
+        ld.lights[currentLightIndex] = gpuLD;
+        ++currentLightIndex;
+    }
+
     lightDataUboOffset = sceneData.append(ld, uboAlignment);
 
     // per object data
     for (auto& drawInfo : drawList) {
         const auto& object = objects[drawInfo.objectIdx];
-        const auto d = PerObjectData{
+        const auto d = UBOPerObjectData{
             .model = object.transform.asMatrix(),
             .props = glm::vec4{object.alpha, 0.f, 0.f, 0.f},
             .lightIdx = drawInfo.lightIdx,
@@ -1087,7 +1018,7 @@ void App::uploadSceneData()
         std::cout << "Reallocated UBO, new size = " << sceneData.getData().size() << std::endl;
     }
 
-    // upload new data
+    // upload to GPU
     glNamedBufferSubData(
         sceneDataBuffer.buffer, 0, sceneData.getData().size(), sceneData.getData().data());
 }
@@ -1111,7 +1042,7 @@ void App::renderSpotLightShadowMap(const CPULightData& lightData)
         CAMERA_DATA_BINDING,
         sceneDataBuffer.buffer,
         lightData.camerasUboOffset,
-        sizeof(CameraData));
+        sizeof(UBOCameraData));
 
     renderSceneObjects(shadowMapOpaqueDrawLists[lightData.shadowMapDrawListIdx]);
 }
@@ -1122,6 +1053,7 @@ void App::renderPointLightShadowMap(const CPULightData& lightData)
     assert(lightData.castsShadow);
     assert(lightData.shadowMapDrawListIdx != SHADOW_MAP_ARRAY_LAYERS);
 
+    const auto alignedCameraDataSize = gfx::getAlignedSize(sizeof(UBOCameraData), uboAlignment);
     for (int i = 0; i < 6; ++i) {
         glNamedFramebufferTextureLayer(
             shadowMapFBO,
@@ -1134,13 +1066,12 @@ void App::renderPointLightShadowMap(const CPULightData& lightData)
         GLfloat depthValue{1.f};
         glClearNamedFramebufferfv(shadowMapFBO, GL_DEPTH, 0, &depthValue);
 
-        const auto alignCameraDataSize = gfx::getAlignedSize(sizeof(CameraData), uboAlignment);
         glBindBufferRange(
             GL_UNIFORM_BUFFER,
             CAMERA_DATA_BINDING,
             sceneDataBuffer.buffer,
-            lightData.camerasUboOffset + i * alignCameraDataSize,
-            sizeof(CameraData));
+            lightData.camerasUboOffset + i * alignedCameraDataSize,
+            sizeof(UBOCameraData));
 
         renderSceneObjects(shadowMapOpaqueDrawLists[lightData.shadowMapDrawListIdx + i]);
     }
@@ -1159,7 +1090,7 @@ void App::renderSceneObjects(const std::vector<DrawInfo>& drawList)
             PER_OBJECT_DATA_BINDING,
             sceneDataBuffer.buffer,
             drawInfo.uboOffset,
-            sizeof(PerObjectData));
+            sizeof(UBOPerObjectData));
 
         glBindTextureUnit(0, textures[object.textureIdx]);
         glDrawElements(GL_TRIANGLES, mesh.numIndices, GL_UNSIGNED_INT, 0);
@@ -1184,7 +1115,6 @@ void App::renderDebugObjects()
 
     // debugRenderer.addFrustumLines(spotLightCamera);
     // debugRenderer.addFrustumLines(testCamera);
-    // debugRenderer.addFrustumLines(testFrustumToDraw);
 
     {
         // const auto lightPos = lights[0].position;
@@ -1267,7 +1197,7 @@ void App::renderWireframes(const std::vector<DrawInfo>& drawList)
             PER_OBJECT_DATA_BINDING,
             sceneDataBuffer.buffer,
             drawInfo.uboOffset,
-            sizeof(PerObjectData));
+            sizeof(UBOPerObjectData));
 
         glDrawElements(GL_TRIANGLES, mesh.numIndices, GL_UNSIGNED_INT, 0);
     }

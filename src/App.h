@@ -8,6 +8,7 @@
 #include "DebugRenderer.h"
 #include "GPUMesh.h"
 #include "GraphicsUtil.h"
+#include "Light.h"
 #include "Transform.h"
 
 #include <random>
@@ -20,9 +21,8 @@ struct ObjectData {
     AABB worldAABB; // aabb in world space
 };
 
+// keep in sync with basic_shader_uniforms.glsl
 inline constexpr std::size_t MAX_LIGHTS_IN_UBO = 32;
-inline constexpr std::size_t MAX_AFFECTING_LIGHTS = 8;
-inline constexpr std::size_t MAX_SHADOW_CASTING_LIGHTS = 8;
 inline constexpr std::size_t SHADOW_MAP_ARRAY_LAYERS = 64;
 
 struct DrawInfo {
@@ -30,59 +30,6 @@ struct DrawInfo {
     std::size_t uboOffset;
     float distToCamera;
     std::array<int, MAX_AFFECTING_LIGHTS> lightIdx;
-};
-
-inline constexpr int LIGHT_TYPE_DIRECTIONAL = 0;
-inline constexpr int LIGHT_TYPE_POINT = 1;
-inline constexpr int LIGHT_TYPE_SPOT = 2;
-
-struct Light {
-    int type{0};
-    glm::vec4 color;
-    float intensity{0.f};
-    float range{0.f}; // point light only
-
-    // spot light only
-    float innerConeAngle{0.f};
-    float outerConeAngle{0.f};
-};
-
-struct CPULightData {
-    glm::vec3 position;
-    glm::vec3 direction;
-    Light light;
-
-    // spot only
-    glm::mat4 lightSpaceProj;
-    glm::mat4 lightSpaceView;
-
-    std::size_t shadowMapDrawListIdx; // index into shadowMapOpaqueDrawLists
-    std::size_t camerasUboOffset; // index into SceneData UBO camera part
-    std::size_t lightSpaceTMsIdx; // index into LightData.lightSpaceTMs
-    std::uint32_t shadowMapIdx; // layer of array texture
-                                // (for point lights, index of the first slice out of 6)
-
-    // animation
-    glm::vec3 rotationOrigin{};
-    float rotationAngle{0.f};
-    float rotationRadius{1.f};
-    float rotationSpeed{0.f};
-
-    bool culled{false};
-    bool castsShadow{false};
-};
-
-struct GPULightData {
-    glm::vec3 position;
-    float intensity;
-    glm::vec3 dir; // directional only
-    float range;
-    glm::vec3 color;
-    int type;
-    glm::vec2 scaleOffset; // spot light only
-    std::uint32_t lightSpaceTMsIdx{MAX_SHADOW_CASTING_LIGHTS};
-    std::uint32_t shadowMapIdx{SHADOW_MAP_ARRAY_LAYERS};
-    glm::vec4 pointLightProjBR;
 };
 
 struct Frustum;
@@ -93,12 +40,14 @@ public:
 
 private:
     void init();
+    void initScene();
     void cleanup();
     void run();
     void update(float dt);
     void render();
 
     void generateDrawList();
+    void generateShadowMapDrawList();
     void uploadSceneData();
     void renderSpotLightShadowMap(const CPULightData& lightData);
     void renderPointLightShadowMap(const CPULightData& lightData);
@@ -125,6 +74,7 @@ private:
 
     SDL_Window* window{nullptr};
     SDL_GLContext glContext{nullptr};
+    int uboAlignment{4};
 
     bool isRunning{false};
     bool frameLimit{true};
@@ -145,6 +95,7 @@ private:
 
     std::size_t cubeMeshIdx;
     std::size_t planeMeshIdx;
+    std::size_t startMeshIdx;
 
     std::vector<ObjectData> objects;
 
@@ -159,32 +110,32 @@ private:
     std::vector<std::size_t> randomSpawnMeshes;
     std::vector<std::size_t> randomSpawnTextures;
 
-    struct CameraData {
+    struct UBOCameraData {
         glm::mat4 projection;
         glm::mat4 view;
         glm::vec4 cameraPos;
     };
+    std::size_t MAX_CAMERAS_IN_UBO = 128;
 
-    struct LightData {
+    struct UBOLightData {
         glm::vec3 ambientColor;
         float ambientIntensity;
 
         GPULightData sunLight;
-        std::array<glm::mat4, MAX_SHADOW_CASTING_LIGHTS> lightSpaceTMs;
+
+        std::array<glm::mat4, MAX_SHADOW_CASTING_LIGHTS> lightSpaceTMs; // spot light viewProj
         std::array<GPULightData, MAX_LIGHTS_IN_UBO> lights;
     };
 
-    struct PerObjectData {
+    struct UBOPerObjectData {
         glm::mat4 model;
-        glm::vec4 props; // x - alpha, yzw - unused
-        std::array<int, MAX_AFFECTING_LIGHTS> lightIdx; // indices of lights affecting the object
+        glm::vec4 props; // x - object alpha, yzw - unused
+        std::array<int, MAX_AFFECTING_LIGHTS> lightIdx; // indices of lights in LightData.lights
+                                                        // affecting the object
     };
     GPUBuffer sceneDataBuffer;
 
-    int uboAlignment{4};
-
     gfx::BumpAllocator sceneData;
-    std::size_t MAX_CAMERAS_IN_UBO = 32;
     std::size_t mainCameraUboOffset;
     std::size_t lightDataUboOffset;
 
@@ -216,11 +167,6 @@ private:
     std::uint32_t shadowMapFBO;
     std::uint32_t shadowMapDepthTexture;
     int shadowMapSize{1024};
-
-    int testFrustumToDrawIdx{0};
-    Camera testFrustumToDraw;
-    glm::vec3 testFragPos;
-    glm::vec3 testLightPos;
 
     DebugRenderer debugRenderer;
 };
