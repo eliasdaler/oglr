@@ -206,32 +206,6 @@ std::array<int, MAX_AFFECTING_LIGHTS> getClosestLights(
     return lightIdx;
 }
 
-std::pair<glm::vec2, int> sampleCube(const glm::vec3& v)
-{
-    // https://www.gamedev.net/forums/topic/687535-implementing-a-cube-map-lookup-function/5337472/
-    // had to flip x/y axis for OpenGL, though
-    glm::vec3 vAbs = glm::abs(v);
-    float ma;
-    glm::vec2 uv;
-    int faceIndex;
-    if (vAbs.z >= vAbs.x && vAbs.z >= vAbs.y) {
-        faceIndex = v.z < 0.0 ? 5.0 : 4.0;
-        ma = 0.5 / vAbs.z;
-        uv = glm::vec2(v.z < 0.0 ? -v.x : v.x, -v.y);
-    } else if (vAbs.y >= vAbs.x) {
-        faceIndex = v.y < 0.0 ? 3.0 : 2.0;
-        ma = 0.5 / vAbs.y;
-        uv = glm::vec2(v.x, v.y < 0.0 ? -v.z : v.z);
-    } else {
-        faceIndex = v.x < 0.0 ? 1.0 : 0.0;
-        ma = 0.5 / vAbs.x;
-        uv = glm::vec2(v.x < 0.0 ? v.z : -v.z, -v.y);
-    }
-
-    uv = uv * ma + glm::vec2(0.5f);
-    return {glm::vec2{1.f} - uv, faceIndex};
-}
-
 void sampleCube2(const glm::vec3& dir, std::uint32_t& faceIdx, glm::vec2& uv, float& depth)
 {
     depth = fmax(fmax(abs(dir.x), abs(dir.y)), abs(dir.z));
@@ -475,7 +449,7 @@ void App::init()
         // lights[0].position = glm::vec3{3.f, 3.5f, 2.f};
         lights[0].castsShadow = true;
 
-        addSpotLight(
+        /* addSpotLight(
             {-3.f, 3.5f, 2.f}, // pos
             glm::normalize(glm::vec3(1.f, -1.f, 1.f)), // dir
             Light{
@@ -486,7 +460,7 @@ void App::init()
                 .innerConeAngle = glm::radians(20.f),
                 .outerConeAngle = glm::radians(30.f),
             },
-            false // cast shadow
+            true // cast shadow
         );
 
         addSpotLight(
@@ -500,8 +474,8 @@ void App::init()
                 .innerConeAngle = glm::radians(20.f),
                 .outerConeAngle = glm::radians(30.f),
             },
-            false // cast shadow
-        );
+            true // cast shadow
+        ); */
 
         { // int point light cameras
           // <front, up>
@@ -751,14 +725,11 @@ void App::update(float dt)
 
     {
         const auto v = glm::normalize(testFragPos - testLightPos);
-        auto [uv, faceIndex] = sampleCube(v);
-        ImGui::Text("uv = (%.2f, %.2f), index = %d", uv.x, uv.y, faceIndex);
-
         std::uint32_t faceIndex2;
         float depth;
         glm::vec2 uv2;
         sampleCube2(v, faceIndex2, uv2, depth);
-        ImGui::Text("uv = (%.2f, %.2f), index = %d, depth = %.2f", uv.x, uv.y, faceIndex, depth);
+        ImGui::Text("uv = (%.2f, %.2f), index = %d, depth = %.2f", uv2.x, uv2.y, faceIndex2, depth);
     }
 
     ImGui::Text("Total objects: %d", (int)objects.size());
@@ -1253,7 +1224,7 @@ void App::renderDebugObjects()
 
     // debugRenderer.addFrustumLines(spotLightCamera);
     // debugRenderer.addFrustumLines(testCamera);
-    // debugRenderer.addFrustumLines(testFrustumToDraw);
+    debugRenderer.addFrustumLines(testFrustumToDraw);
 
     {
         // const auto lightPos = lights[0].position;
@@ -1277,7 +1248,6 @@ void App::renderDebugObjects()
         debugRenderer.addAABBLines(cubeAABB, glm::vec4{1.f, 1.f, 0.f, 1.f}); */
     }
 
-    /*
     { // world origin
         debugRenderer.addLine(
             glm::vec3{0.f, 0.f, 0.f}, glm::vec3{1.f, 0.f, 0.f}, glm::vec4{1.f, 0.f, 0.f, 1.f});
@@ -1285,7 +1255,7 @@ void App::renderDebugObjects()
             glm::vec3{0.f, 0.f, 0.f}, glm::vec3{0.f, 1.f, 0.f}, glm::vec4{0.f, 1.f, 0.f, 1.f});
         debugRenderer.addLine(
             glm::vec3{0.f, 0.f, 0.f}, glm::vec3{0.f, 0.f, 1.f}, glm::vec4{0.f, 0.f, 1.f, 1.f});
-    } */
+    }
 
     // spot light
     for (const auto& light : lights) {
