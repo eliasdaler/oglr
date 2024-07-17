@@ -65,11 +65,12 @@ float calculateOcclusionPoint(vec3 fragPos, vec3 lightPos, float NoL, uint start
     calcPointLightLookupInfo(fragToLight, faceIndex, uv, currentDepth);
 
     // TODO: fix uvs
-    uv.y = 1 - uv.y;
+    // uv.y = 1 - uv.y;
     if (faceIndex == 2 || faceIndex == 3) {
+        return 1.0;
         // "up" and "down" have weird orientations currently
-        uv.y = 1 - uv.y;
-        uv.x = 1 - uv.x;
+        // uv.y = 1 - uv.y;
+        // uv.x = 1 - uv.x;
     }
 
     // Calculate depth in light's space

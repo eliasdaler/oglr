@@ -129,9 +129,9 @@ Camera makeSpotLightCamera(
 
     // need - in quatLookAt because it assumes -Z forward
     if (std::abs(glm::dot(direction, math::GLOBAL_UP_DIR)) > 0.9999f) {
-        spotLightCamera.setHeading(glm::quatLookAt(-direction, math::GLOBAL_FORWARD_DIR));
+        spotLightCamera.setHeading(glm::quatLookAt(direction, math::GLOBAL_FORWARD_DIR));
     } else {
-        spotLightCamera.setHeading(glm::quatLookAt(-direction, math::GLOBAL_UP_DIR));
+        spotLightCamera.setHeading(glm::quatLookAt(direction, math::GLOBAL_UP_DIR));
     }
 
     return spotLightCamera;
@@ -360,6 +360,7 @@ void App::init()
         const auto zFar = 1000.f;
         camera.init(fovX, zNear, zFar, (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT);
         camera.setPosition({0.f, 2.5f, -10.f});
+        camera.lookAt({0.f, 4.f, -1.f});
     }
 
     { // init test camera
@@ -478,18 +479,18 @@ void App::init()
             const auto farPlane = pointLightMaxRange;
 
             static const std::array<std::pair<glm::vec3, glm::vec3>, 6> shadowDirections{{
-                {{1.0, 0.0, 0.0}, {0.0, -1.0, 0.0}}, // posx
-                {{-1.0, 0.0, 0.0}, {0.0, -1.0, 0.0}}, // negx
-                {{0.0, 1.0, 0.0}, {0.0, 0.0, -1.0}}, // posy
-                {{0.0, -1.0, 0.0}, {0.0, 0.0, 1.0}}, // negy
-                {{0.0, 0.0, 1.0}, {0.0, -1.0, 0.0}}, // posz
-                {{0.0, 0.0, -1.0}, {0.0, -1.0, 0.0}}, // negz
+                {{1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}}, // posx
+                {{-1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}}, // negx
+                {{0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}}, // posy
+                {{0.0, -1.0, 0.0}, {0.0, 0.0, -1.0}}, // negy
+                {{0.0, 0.0, 1.0}, {0.0, 1.0, 0.0}}, // posz
+                {{0.0, 0.0, -1.0}, {0.0, 1.0, 0.0}}, // negz
             }};
 
             for (int i = 0; i < 6; ++i) {
                 auto& camera = pointLightShadowMapCameras[i];
                 camera.setHeading(
-                    glm::quatLookAt(-shadowDirections[i].first, shadowDirections[i].second));
+                    glm::quatLookAt(shadowDirections[i].first, shadowDirections[i].second));
                 camera.init(glm::radians(90.0f), nearPlane, farPlane, aspect);
             }
         }
@@ -1215,7 +1216,7 @@ void App::renderDebugObjects()
 
     // debugRenderer.addFrustumLines(spotLightCamera);
     // debugRenderer.addFrustumLines(testCamera);
-    // debugRenderer.addFrustumLines(testFrustumToDraw);
+    debugRenderer.addFrustumLines(testFrustumToDraw);
 
     {
         // const auto lightPos = lights[0].position;

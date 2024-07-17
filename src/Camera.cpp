@@ -23,7 +23,7 @@ void Camera::init(float fovX, float zNear, float zFar, float aspectRatio)
 
 void Camera::lookAt(const glm::vec3& point)
 {
-    auto dir = glm::normalize(transform.position - point);
+    auto dir = glm::normalize(point - transform.position);
     transform.heading = glm::quatLookAt(dir, math::GLOBAL_UP_DIR);
 }
 
