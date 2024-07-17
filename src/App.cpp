@@ -438,9 +438,6 @@ void App::init()
             });
         }
 
-        // lights[2].position = glm::vec3{3.f, 3.5f, 2.f};
-        // lights[2].castsShadow = false;
-
         lights[0].position = glm::vec3{4.f, 3.5f, 4.f};
         lights[0].position = glm::vec3{3.f, 3.5f, 2.f};
         lights[0].castsShadow = true;
@@ -762,7 +759,7 @@ void App::handleFreeCameraControls(float dt)
 
         glm::vec3 moveVector{};
         moveVector += camera.getForward() * (-moveStickState.y);
-        moveVector += camera.getRight() * (-moveStickState.x);
+        moveVector += camera.getRight() * moveStickState.x;
         moveVector += math::GLOBAL_UP_DIR * moveUpDownState.x;
 
         auto pos = camera.getPosition();
@@ -779,7 +776,7 @@ void App::handleFreeCameraControls(float dt)
 
         glm::vec2 rotationVelocity;
         rotationVelocity.x = -rotateStickState.x * rotateYawSpeed;
-        rotationVelocity.y = rotateStickState.y * rotatePitchSpeed;
+        rotationVelocity.y = -rotateStickState.y * rotatePitchSpeed;
 
         const auto dYaw = glm::angleAxis(rotationVelocity.x * dt, math::GLOBAL_UP_DIR);
         const auto dPitch = glm::angleAxis(rotationVelocity.y * dt, math::GLOBAL_RIGHT_DIR);
@@ -1218,7 +1215,7 @@ void App::renderDebugObjects()
 
     // debugRenderer.addFrustumLines(spotLightCamera);
     // debugRenderer.addFrustumLines(testCamera);
-    debugRenderer.addFrustumLines(testFrustumToDraw);
+    // debugRenderer.addFrustumLines(testFrustumToDraw);
 
     {
         // const auto lightPos = lights[0].position;
