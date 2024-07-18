@@ -64,6 +64,7 @@ GPUMesh uploadMeshToGPU(const CPUMesh& cpuMesh);
 struct GlobalState {
     bool depthTestEnabled{true};
     bool depthWriteEnabled{true};
+    GLenum depthFunc{GL_LESS};
     bool cullingEnabled{true};
     bool blendEnabled{false};
 };

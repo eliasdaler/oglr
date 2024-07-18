@@ -237,6 +237,7 @@ void setGlobalState(const GlobalState& state)
 {
     if (state.depthTestEnabled) {
         glEnable(GL_DEPTH_TEST);
+        glDepthFunc(state.depthFunc);
     } else {
         glDisable(GL_DEPTH_TEST);
     }

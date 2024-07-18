@@ -300,6 +300,7 @@ void App::init()
     opaqueDrawState = gfx::GlobalState{
         .depthTestEnabled = true,
         .depthWriteEnabled = false,
+        .depthFunc = GL_EQUAL,
         .cullingEnabled = true,
         .blendEnabled = false,
     };
@@ -428,7 +429,7 @@ void App::initScene()
 
     // some cubes
     spawnObject({0.f, 1.f, 0.f}, cubeMeshIdx, 0, 1.0f);
-    spawnObject({0.f, 1.f, 2.5f}, cubeMeshIdx, 1, 1.f);
+    spawnObject({0.f, 1.f, 2.5f}, cubeMeshIdx, 1, 0.7f);
     spawnObject({0.f, 1.f, 5.f}, cubeMeshIdx, 0, 1.f);
     spawnObject({0.f, 1.f, 7.5f}, cubeMeshIdx, 1, 1.f);
 
@@ -740,8 +741,6 @@ void App::render()
     }
 
     { // draw scene
-        glDepthFunc(GL_EQUAL);
-
         // object texture will be read from TU0
         glProgramUniform1i(worldShader, FRAG_TEXTURE_UNIFORM_LOC, 0);
         // gobo texture will be read from TU1
@@ -785,8 +784,6 @@ void App::render()
             renderSceneObjects(transparentDrawList);
         }
     }
-
-    glDepthFunc(GL_LESS);
 
     // restore default FBO
     // we'll draw everything into it
