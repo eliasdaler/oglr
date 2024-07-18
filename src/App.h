@@ -176,8 +176,11 @@ private:
 
     const float tileSize{64.f};
     std::vector<std::array<int, MAX_LIGHTS_PER_TILE>> lightsPerTile;
-    int debugTileIdx{170};
+    int debugTileIdx{0};
     GPUBuffer lightsPerTileBuffer;
 
     DebugRenderer debugRenderer;
+
+    float normCoordX;
+    float normCoordY;
 };

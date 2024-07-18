@@ -395,8 +395,8 @@ void App::init()
         static const std::array<std::pair<glm::vec3, glm::vec3>, 6> shadowDirections{{
             {{1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}}, // posx
             {{-1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}}, // negx
-            {{0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}}, // posy
-            {{0.0, -1.0, 0.0}, {0.0, 0.0, -1.0}}, // negy
+            {{0.0, 1.0, 0.0}, {0.0, 0.0, -1.0}}, // posy
+            {{0.0, -1.0, 0.0}, {0.0, 0.0, 1.0}}, // negy
             {{0.0, 0.0, 1.0}, {0.0, 1.0, 0.0}}, // posz
             {{0.0, 0.0, -1.0}, {0.0, 1.0, 0.0}}, // negz
         }};
@@ -441,13 +441,13 @@ void App::initScene()
     // some cubes
     spawnObject({0.f, 1.f, 0.f}, cubeMeshIdx, 0, 1.0f);
     spawnObject({0.f, 1.f, 2.5f}, cubeMeshIdx, 1, 0.7f);
-    spawnObject({0.f, 1.f, 5.f}, cubeMeshIdx, 0, 1.f);
+    spawnObject({0.f, 1.f, 5.f}, cubeMeshIdx, 1, 1.f);
     spawnObject({0.f, 1.f, 7.5f}, cubeMeshIdx, 1, 1.f);
 
     spawnObject({6.f, 1.f, 2.5f}, cubeMeshIdx, 1, 1.f);
     spawnObject({6.f, 1.f, 5.f}, cubeMeshIdx, 0, 1.f);
     // star
-    spawnObject({3.f, 4.5f, 2.0f}, startMeshIdx, 0, 1.f);
+    spawnObject({3.f, 6.f, 2.0f}, startMeshIdx, 0, 1.f);
 
     spawnObject({-1.f, 4.0f, 4.0f}, startMeshIdx, 1, 1.f);
     objects.back().transform.heading =
@@ -467,28 +467,30 @@ void App::initScene()
         // generate some random floating point lights
         std::uniform_real_distribution<float> posXZDist(-3.f, 3.f);
         std::uniform_real_distribution<float> posYDist(3.f, 5.0f);
-        std::uniform_real_distribution<float> rangeDist(2.f, 2.f);
+        std::uniform_real_distribution<float> rangeDist(20.f, 20.f);
         std::uniform_real_distribution<float> colorDist(0.2f, 0.9f);
         std::uniform_real_distribution<float> rotationRadiusDist(1.f, 2.f);
         std::uniform_real_distribution<float> rotationSpeedDist(-1.5f, 1.5f);
-        for (std::size_t i = 0; i < 1; ++i) {
+        for (std::size_t i = 0; i < 12; ++i) {
             lights.push_back(CPULightData{
                 .position = {posXZDist(rng), posYDist(rng), posXZDist(rng)},
                 .light =
                     Light{
                         .type = LIGHT_TYPE_POINT,
                         .color = {colorDist(rng), colorDist(rng), colorDist(rng), 1.f},
-                        .intensity = 10.f,
+                        .intensity = 0.5f,
                         .range = rangeDist(rng),
                     },
                 .rotationOrigin = {posXZDist(rng), posYDist(rng), posXZDist(rng)},
                 .rotationRadius = rotationRadiusDist(rng),
                 .rotationSpeed = rotationSpeedDist(rng),
-                .castsShadow = true,
+                .castsShadow = false,
             });
         }
+        lights[0].position = glm::vec3{4.f, 3.5f, 4.f};
+        // lights[1].position = {-4.f, 3.f, 0.f};
 
-        /* addSpotLight(
+        addSpotLight(
             {-3.f, 3.5f, 2.f}, // pos
             glm::normalize(glm::vec3(1.f, -1.f, 1.f)), // dir
             Light{
@@ -514,7 +516,7 @@ void App::initScene()
                 .outerConeAngle = glm::radians(30.f),
             },
             true // cast shadow
-        ); */
+        );
     }
 }
 
@@ -628,7 +630,7 @@ void App::update(float dt)
     }
 
     // animate lights
-    /* for (auto& light : lights) {
+    for (auto& light : lights) {
         if (light.rotationSpeed == 0.f) {
             continue;
         }
@@ -638,7 +640,7 @@ void App::update(float dt)
         light.position.y = light.rotationOrigin.y;
         light.position.z =
             light.rotationOrigin.z + std::sin(light.rotationAngle) * light.rotationRadius;
-    } */
+    }
 
     ImGui::Begin("Debug");
 
@@ -649,6 +651,7 @@ void App::update(float dt)
     auto tileX = debugTileIdx % tilesX;
     auto tileY = debugTileIdx / tilesX;
     ImGui::Text("Tile: (%d, %d)", tileX, tileY);
+    ImGui::Text("normCoord: (%.2f, %.2f)", normCoordX, normCoordY);
 
     ImGui::Text("Total objects: %d", (int)objects.size());
     ImGui::Text("Drawn objects: %d", (int)(opaqueDrawList.size() + transparentDrawList.size()));
@@ -898,13 +901,21 @@ void App::generateDrawList()
     generateShadowMapDrawList();
 
     // tile calculations
+    const auto numTilesX = (int)(std::ceil((float)WINDOW_WIDTH / tileSize));
+    const auto numTilesY = (int)(std::ceil((float)WINDOW_HEIGHT / tileSize));
+
+    const auto cameraVP = camera.getViewProj();
     for (std::size_t tileIndex = 0; tileIndex < lightsPerTile.size(); ++tileIndex) {
         auto& tileLightIndices = lightsPerTile[tileIndex];
         for (int i = 0; i < MAX_LIGHTS_PER_TILE; ++i) {
             tileLightIndices[i] = -1;
         }
 
-        const auto tileFrustum = util::createFrustumFromCamera(camera);
+        const auto tileX = tileIndex % numTilesX;
+        const auto tileY = tileIndex / numTilesX;
+
+        const auto tileFrustum =
+            util::createSubFrustum(cameraVP, tileX, tileY, numTilesX, numTilesY);
         std::size_t lightIdx = 0;
         std::size_t lightIdxInTile = 0;
         for (const auto& light : lights) {
@@ -912,6 +923,7 @@ void App::generateDrawList()
                 continue;
             }
             if (shouldCullLight(tileFrustum, light)) {
+                ++lightIdx;
                 continue;
             }
 
@@ -1104,6 +1116,9 @@ void App::uploadSceneData()
         if (light.castsShadow) {
             gpuLD.lightSpaceTMsIdx = light.lightSpaceTMsIdx;
             gpuLD.shadowMapIdx = light.shadowMapIdx;
+        } else {
+            gpuLD.lightSpaceTMsIdx = MAX_CAMERAS_IN_UBO;
+            gpuLD.shadowMapIdx = SHADOW_MAP_ARRAY_LAYERS;
         }
         if (light.castsShadow && light.light.type == LIGHT_TYPE_POINT) {
             // all point light cameras have the same projection
@@ -1210,7 +1225,29 @@ void App::renderDebugObjects()
         }
     }
 
-    debugRenderer.addFrustumLines(testCamera);
+    int tilesX = std::ceil((float)WINDOW_WIDTH / tileSize);
+    auto tileX = debugTileIdx % tilesX;
+    auto tileY = debugTileIdx / tilesX;
+    auto screenCoordX = tileX * tileSize;
+    auto screenCoordY = tileY * tileSize;
+    normCoordX = (float)screenCoordX / (float)WINDOW_WIDTH * 2.f - 1.f;
+    normCoordY = (float)screenCoordY / (float)WINDOW_HEIGHT * 2.f - 1.f;
+
+    auto p = testCamera.getProjection();
+    auto po = p;
+
+    auto sx = (float)WINDOW_WIDTH / tileSize;
+    auto sy = (float)WINDOW_HEIGHT / tileSize;
+    p = glm::scale(p, glm::vec3{sx, sy, 1.f});
+    auto v = testCamera.getView();
+
+    auto lightPos = lights[0].position;
+    auto vPos = v * glm::vec4(lightPos, 1.f);
+    auto projectedPos = po * vPos;
+    projectedPos /= projectedPos.w;
+
+    auto projectedPos2 = p * vPos;
+    projectedPos2 /= projectedPos2.w;
 
     { // world origin
         debugRenderer.addLine(
@@ -1237,9 +1274,7 @@ void App::renderDebugObjects()
                 debugRenderer.addAABBLines(lightAABB, light.light.color);
             }
             debugRenderer.addLine(
-                light.position,
-                light.position + glm::vec3{0.f, 0.1f, 0.f},
-                glm::vec4{1.f, 1.f, 0.f, 1.f});
+                light.position, light.position + glm::vec3{0.f, 0.1f, 0.f}, light.light.color);
         }
     }
 

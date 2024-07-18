@@ -93,18 +93,18 @@ void DebugRenderer::addAABBLines(const AABB& aabb, const glm::vec4& color)
     }
 }
 
-void DebugRenderer::addFrustumLines(const Camera& camera)
+void DebugRenderer::addFrustumLines(const glm::mat4& viewProj, const glm::vec4& nearFarPlaneColor)
 {
-    const auto corners = util::calculateFrustumCornersWorldSpace(camera.getViewProj());
+    const auto corners = util::calculateFrustumCornersWorldSpace(viewProj);
 
     // left plane
     addQuadLines(corners[4], corners[5], corners[1], corners[0], glm::vec4{1.f, 1.f, 0.f, 1.f});
     // right plane
     addQuadLines(corners[7], corners[6], corners[2], corners[3], glm::vec4{1.f, 1.f, 0.f, 1.f});
     // near plane
-    addQuadLines(corners[0], corners[1], corners[2], corners[3], glm::vec4{0.f, 1.f, 1.f, 1.f});
+    addQuadLines(corners[0], corners[1], corners[2], corners[3], nearFarPlaneColor);
     // far plane
-    addQuadLines(corners[4], corners[5], corners[6], corners[7], glm::vec4{0.f, 1.f, 1.f, 1.f});
+    addQuadLines(corners[4], corners[5], corners[6], corners[7], nearFarPlaneColor);
 
 #if 0
     // draw normals

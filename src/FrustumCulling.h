@@ -72,6 +72,7 @@ namespace util
 std::array<glm::vec3, 8> calculateFrustumCornersWorldSpace(const glm::mat4& vp);
 Frustum createFrustumFromCamera(const Camera& camera);
 Frustum createFrustumFromVPMatrix(const glm::mat4& vp);
+Frustum createSubFrustum(const glm::mat4& vp, int tileX, int tileY, int numTilesX, int numTilesY);
 bool isInFrustum(const Frustum& frustum, const AABB& aabb);
 bool isInFrustum(const Frustum& frustum, const Sphere& s);
 }

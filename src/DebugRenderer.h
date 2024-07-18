@@ -1,5 +1,6 @@
 #pragma once
 
+#include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 
@@ -8,6 +9,7 @@
 
 struct AABB;
 class Camera;
+class Frustum;
 
 class DebugRenderer {
 public:
@@ -29,7 +31,12 @@ public:
         const glm::vec3& d,
         const glm::vec4& color);
     void addAABBLines(const AABB& aabb, const glm::vec4& color);
-    void addFrustumLines(const Camera& camera);
+    void addFrustumLines(
+        const glm::mat4& viewProj,
+        const glm::vec4& nearFarPlaneColor = glm::vec4{0.f, 1.f, 1.f, 0.f});
+    void addFrustumLines(
+        const Frustum& frustum,
+        const glm::vec4& nearFarPlaneColor = glm::vec4{0.f, 1.f, 1.f, 0.f});
 
     void render(const Camera& camera);
 

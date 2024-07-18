@@ -29,7 +29,7 @@ void Camera::lookAt(const glm::vec3& point)
 
 glm::mat4 Camera::getView() const
 {
-    const auto lookDir = transform.getForward();
+    /* const auto lookDir = transform.getForward();
     if (std::abs(glm::dot(lookDir, math::GLOBAL_UP_DIR)) > 0.9999f) {
         if (glm::dot(lookDir, math::GLOBAL_UP_DIR) > 0.9999f) {
             return glm::
@@ -38,7 +38,9 @@ glm::mat4 Camera::getView() const
         return glm::
             lookAt(transform.position, transform.position + lookDir, -math::GLOBAL_FORWARD_DIR);
     }
-    return glm::lookAt(transform.position, transform.position + lookDir, math::GLOBAL_UP_DIR);
+    return glm::lookAt(transform.position, transform.position + lookDir, math::GLOBAL_UP_DIR); */
+    const auto rot = glm::transpose(glm::mat4_cast(transform.heading));
+    return glm::translate(rot, -transform.position);
 }
 
 glm::mat4 Camera::getViewProj() const
