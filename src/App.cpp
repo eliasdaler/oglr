@@ -29,6 +29,7 @@ constexpr auto CAMERA_DATA_BINDING = 0;
 constexpr auto LIGHT_DATA_BINDING = 1;
 constexpr auto PER_OBJECT_DATA_BINDING = 2;
 constexpr auto VERTEX_DATA_BINDING = 3;
+constexpr auto LIGHTS_DATA_BINDING = 4;
 
 template<typename T, typename RNGType>
 std::size_t chooseRandomElementIndex(const std::vector<T>& v, RNGType& rng)
@@ -131,7 +132,7 @@ std::array<int, MAX_AFFECTING_LIGHTS> getClosestLights(
         if (i < dists.size()) {
             lightIdx[i] = dists[i].idx;
         } else {
-            lightIdx[i] = MAX_LIGHTS_IN_UBO + 1;
+            lightIdx[i] = -1;
         }
     }
     return lightIdx;
@@ -228,6 +229,10 @@ void App::init()
         sceneDataBuffer = gfx::allocateBuffer(bufSize, nullptr, "sceneData");
         sceneData.resize(bufSize);
     }
+
+    const auto MAX_LIGHTS_INITIAL = 128;
+    lightsBuffer =
+        gfx::allocateBuffer(sizeof(GPULightData) * MAX_LIGHTS_INITIAL, nullptr, "lights data");
 
     // we still need an empty VAO even for vertex pulling
     glGenVertexArrays(1, &vao);
@@ -736,6 +741,8 @@ void App::render()
             lightDataUboOffset,
             sizeof(UBOLightData));
 
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, LIGHTS_DATA_BINDING, lightsBuffer.buffer);
+
         glUseProgram(worldShader);
 
         {
@@ -977,29 +984,6 @@ void App::uploadSceneData()
         ++currentTMIdx;
     }
 
-    // lights
-    assert(lights.size() <= MAX_LIGHTS_IN_UBO);
-    std::size_t currentLightIndex = 0;
-    for (const auto& light : lights) {
-        if (light.culled) {
-            continue;
-        }
-
-        auto gpuLD = toGPULightData(light.position, light.direction, light.light);
-        if (light.castsShadow) {
-            gpuLD.lightSpaceTMsIdx = light.lightSpaceTMsIdx;
-            gpuLD.shadowMapIdx = light.shadowMapIdx;
-        }
-        if (light.castsShadow && light.light.type == LIGHT_TYPE_POINT) {
-            // all point light cameras have the same projection
-            const auto& m = pointLightShadowMapCameras[0].getProjection();
-            gpuLD.pointLightProjBR = glm::vec4{m[2][2], m[3][2], m[2][3], m[3][3]};
-        }
-
-        ld.lights[currentLightIndex] = gpuLD;
-        ++currentLightIndex;
-    }
-
     lightDataUboOffset = sceneData.append(ld, uboAlignment);
 
     // per object data
@@ -1023,6 +1007,40 @@ void App::uploadSceneData()
     // upload to GPU
     glNamedBufferSubData(
         sceneDataBuffer.buffer, 0, sceneData.getData().size(), sceneData.getData().data());
+
+    // lights
+    lightGPUDataToUpload.clear();
+    lightGPUDataToUpload.reserve(lights.size());
+    for (const auto& light : lights) {
+        if (light.culled) {
+            continue;
+        }
+
+        auto gpuLD = toGPULightData(light.position, light.direction, light.light);
+        if (light.castsShadow) {
+            gpuLD.lightSpaceTMsIdx = light.lightSpaceTMsIdx;
+            gpuLD.shadowMapIdx = light.shadowMapIdx;
+        }
+        if (light.castsShadow && light.light.type == LIGHT_TYPE_POINT) {
+            // all point light cameras have the same projection
+            const auto& m = pointLightShadowMapCameras[0].getProjection();
+            gpuLD.pointLightProjBR = glm::vec4{m[2][2], m[3][2], m[2][3], m[3][3]};
+        }
+
+        lightGPUDataToUpload.push_back(std::move(gpuLD));
+    }
+
+    // realloc if out of space
+    const auto lightsUploadSize = lightGPUDataToUpload.size() * sizeof(GPULightData);
+    while (lightsUploadSize > lightsBuffer.size) {
+        glDeleteBuffers(1, &lightsBuffer.buffer);
+        lightsBuffer = gfx::allocateBuffer(lightsBuffer.size * 2, nullptr, "lights data");
+        std::cout << "Reallocated lights data buffer, new size = " << sceneData.getData().size()
+                  << std::endl;
+    }
+
+    // upload to GPU
+    glNamedBufferSubData(lightsBuffer.buffer, 0, lightsUploadSize, lightGPUDataToUpload.data());
 }
 
 void App::renderSpotLightShadowMap(const CPULightData& lightData)

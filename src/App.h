@@ -22,7 +22,6 @@ struct ObjectData {
 };
 
 // keep in sync with basic_shader_uniforms.glsl
-inline constexpr std::size_t MAX_LIGHTS_IN_UBO = 32;
 inline constexpr std::size_t SHADOW_MAP_ARRAY_LAYERS = 64;
 
 struct DrawInfo {
@@ -124,16 +123,19 @@ private:
         GPULightData sunLight;
 
         std::array<glm::mat4, MAX_SHADOW_CASTING_LIGHTS> lightSpaceTMs; // spot light viewProj
-        std::array<GPULightData, MAX_LIGHTS_IN_UBO> lights;
     };
 
     struct UBOPerObjectData {
         glm::mat4 model;
         glm::vec4 props; // x - object alpha, yzw - unused
-        std::array<int, MAX_AFFECTING_LIGHTS> lightIdx; // indices of lights in LightData.lights
-                                                        // affecting the object
+        std::array<std::int32_t, MAX_AFFECTING_LIGHTS> lightIdx; // indices of lights in
+                                                                 // LightData.lights affecting the
+                                                                 // object
     };
     GPUBuffer sceneDataBuffer;
+
+    GPUBuffer lightsBuffer{};
+    std::vector<GPULightData> lightGPUDataToUpload;
 
     gfx::BumpAllocator sceneData;
     std::size_t mainCameraUboOffset;

@@ -19,9 +19,7 @@ layout (binding = 1, std140) uniform LightData
     float ambientIntensity;
 
     Light sunLight;
-
     mat4 lightSpaceTMs[MAX_SHADOW_CASTING_LIGHTS];
-    Light lights[MAX_LIGHTS];
 };
 
 layout (binding = 2, std140) uniform PerObjectData
@@ -33,4 +31,8 @@ layout (binding = 2, std140) uniform PerObjectData
 
 layout(binding = 3, std430) readonly buffer VertexData {
     Vertex vertices[];
+};
+
+layout(binding = 4, std430) readonly buffer LightsData {
+    Light lights[];
 };

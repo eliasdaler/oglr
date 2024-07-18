@@ -97,7 +97,7 @@ void main()
     // other lights
     for (int i = 0; i < MAX_AFFECTING_LIGHTS; i++) {
         int idx = lightIdx[i >> 2][i & 3];
-        if (idx >= MAX_LIGHTS) { continue; }
+        if (idx == -1) { continue; }
 
         Light light = lights[idx];
 
