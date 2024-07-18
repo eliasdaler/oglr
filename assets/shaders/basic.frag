@@ -95,8 +95,17 @@ void main()
     fragColor.rgb += calculateLight(fragPos, n, v, diffuse, sunLight, 1.0);
 
     // other lights
-    for (int i = 0; i < MAX_AFFECTING_LIGHTS; i++) {
-        int idx = lightIdx[i >> 2][i & 3];
+    vec2 screenSize = vec2(1280, 960);
+    float TILE_SIZE = 64;
+    vec2 screenCoord = gl_FragCoord.xy;
+    screenCoord.y = screenSize.y - screenCoord.y;
+    float tilesX = ceil(screenSize.x / TILE_SIZE);
+    float tileIdx = floor(screenCoord.x / TILE_SIZE) +
+                    floor(screenCoord.y / TILE_SIZE) * tilesX;
+
+    LightTileData td = tileLightData[int(tileIdx)];
+    for (int i = 0; i < 16; i++) {
+        int idx = td.lightIdx[i];
         if (idx == -1) { continue; }
 
         Light light = lights[idx];
@@ -116,6 +125,7 @@ void main()
         fragColor.rgb += calculateLight(fragPos, n, v, diffuse, lights[idx], occlusion);
     }
 
+
     fragColor.rgb += diffuse * ambientColor * ambientIntensity;
 
     // gobo
@@ -129,6 +139,16 @@ void main()
         goboLight *= texture(goboTex, projCoords.xy).rgb;
         fragColor.rgb += goboLight;
     } */
+
+    /* if (tileIdx != 170) {
+        float average = 0.2126 * fragColor.r + 0.7152 * fragColor.g + 0.0722 * fragColor.b;
+        average *= 0.5;
+        fragColor.rgb = vec3(average);
+    } */
+
+    if (td.lightIdx[0] == -1) {
+        fragColor.r *= 5.0;
+    }
 
     fragColor.a = props.x;
 }

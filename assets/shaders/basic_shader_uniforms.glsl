@@ -36,3 +36,11 @@ layout(binding = 3, std430) readonly buffer VertexData {
 layout(binding = 4, std430) readonly buffer LightsData {
     Light lights[];
 };
+
+struct LightTileData {
+    int lightIdx[16];
+};
+
+layout(binding = 5, std430) readonly buffer TileLightsData {
+    LightTileData tileLightData[];
+};

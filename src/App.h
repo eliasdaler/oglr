@@ -24,6 +24,8 @@ struct ObjectData {
 // keep in sync with basic_shader_uniforms.glsl
 inline constexpr std::size_t SHADOW_MAP_ARRAY_LAYERS = 64;
 
+inline constexpr std::size_t MAX_LIGHTS_PER_TILE{16};
+
 struct DrawInfo {
     std::size_t objectIdx;
     std::size_t uboOffset;
@@ -171,6 +173,11 @@ private:
     std::uint32_t shadowMapFBO;
     std::uint32_t shadowMapDepthTexture;
     int shadowMapSize{1024};
+
+    const float tileSize{64.f};
+    std::vector<std::array<int, MAX_LIGHTS_PER_TILE>> lightsPerTile;
+    int debugTileIdx{170};
+    GPUBuffer lightsPerTileBuffer;
 
     DebugRenderer debugRenderer;
 };
