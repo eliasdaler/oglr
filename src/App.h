@@ -23,7 +23,6 @@ struct ObjectData {
 
 // keep in sync with basic_shader_uniforms.glsl
 inline constexpr std::size_t SHADOW_MAP_ARRAY_LAYERS = 64;
-
 inline constexpr std::size_t MAX_LIGHTS_PER_TILE{16};
 
 struct DrawInfo {
@@ -104,9 +103,10 @@ private:
     bool useTestCameraForCulling{false};
     bool drawAABBs{false};
     bool drawWireframes{false};
+    bool drawLightVisualization{false};
 
     float timer{0.f};
-    float timeToSpawnNewObject{1000.5f};
+    float timeToSpawnNewObject{0.f};
     std::vector<std::size_t> randomSpawnMeshes;
     std::vector<std::size_t> randomSpawnTextures;
 
@@ -177,8 +177,9 @@ private:
     int debugTileIdx{0};
     GPUBuffer lightsPerTileBuffer;
 
-    DebugRenderer debugRenderer;
+    float globalPointLightRange{1.4f};
 
-    float normCoordX;
-    float normCoordY;
+    int randomObjectsToSpawnAtStart{40};
+
+    DebugRenderer debugRenderer;
 };

@@ -405,9 +405,13 @@ void App::initScene()
     objects.back().transform.heading =
         glm::angleAxis(glm::radians(90.f), glm::vec3{1.f, 0.5f, 0.f});
 
+    for (int i = 0; i < randomObjectsToSpawnAtStart; ++i) {
+        generateRandomObject();
+    }
+
     { // init lights
         ambientColor = glm::vec3{0.3f, 0.65f, 0.8f};
-        ambientIntensity = 0.1f;
+        ambientIntensity = 0.08f;
 
         sunLightDir = glm::normalize(glm::vec3(1.f, -1.f, 1.f));
         sunLight = Light{
@@ -447,7 +451,6 @@ void App::initScene()
         // generate some random floating point lights
         std::uniform_real_distribution<float> posXZDist(-3.f, 3.f);
         std::uniform_real_distribution<float> posYDist(3.f, 7.0f);
-        std::uniform_real_distribution<float> rangeDist(20.f, 20.f);
         std::uniform_real_distribution<float> colorDist(0.2f, 0.9f);
         std::uniform_real_distribution<float> rotationRadiusDist(1.f, 2.f);
         std::uniform_real_distribution<float> rotationSpeedDist(-1.5f, 1.5f);
@@ -458,8 +461,8 @@ void App::initScene()
                     Light{
                         .type = LIGHT_TYPE_POINT,
                         .color = {colorDist(rng), colorDist(rng), colorDist(rng), 1.f},
-                        .intensity = 0.5f,
-                        .range = rangeDist(rng),
+                        .intensity = 0.75f,
+                        .range = globalPointLightRange,
                     },
                 .rotationOrigin = {posXZDist(rng), posYDist(rng), posXZDist(rng)},
                 .rotationRadius = rotationRadiusDist(rng),
@@ -572,7 +575,7 @@ void App::update(float dt)
 
     // spawn random objects
     timer += dt;
-    if (timer >= timeToSpawnNewObject) {
+    if (timer >= timeToSpawnNewObject && timeToSpawnNewObject != 0.f) {
         timer = 0.f;
         generateRandomObject();
     }
@@ -606,7 +609,6 @@ void App::update(float dt)
     auto tileX = debugTileIdx % tilesX;
     auto tileY = debugTileIdx / tilesX;
     ImGui::Text("Tile: (%d, %d)", tileX, tileY);
-    ImGui::Text("normCoord: (%.2f, %.2f)", normCoordX, normCoordY);
 
     ImGui::Text("Total objects: %d", (int)objects.size());
     ImGui::Text("Drawn objects: %d", (int)(opaqueDrawList.size() + transparentDrawList.size()));
@@ -620,9 +622,19 @@ void App::update(float dt)
     }
     ImGui::Text("Lights culled : %d", numLightsCulled);
 
+    ImGui::InputFloat("Time to spawn new object", &timeToSpawnNewObject);
+    if (ImGui::DragFloat("Point light range", &globalPointLightRange, 0.1f, 0.f, 20.f)) {
+        for (auto& light : lights) {
+            if (light.light.type == LIGHT_TYPE_POINT) {
+                light.light.range = globalPointLightRange;
+            }
+        }
+    }
+
     // ImGui::Text("Drawn objects (shadow map): %d", (int)shadowMapOpaqueDrawList.size());
     ImGui::Checkbox("Use test camera for culling", &useTestCameraForCulling);
     ImGui::Checkbox("Draw AABBs", &drawAABBs);
+    ImGui::Checkbox("Draw light visualization", &drawLightVisualization);
     ImGui::Checkbox("Draw wireframes", &drawWireframes);
 
     if (ImGui::Button("Update test camera")) {
@@ -1189,22 +1201,24 @@ void App::renderDebugObjects()
     }
 
     // spot light
-    for (const auto& light : lights) {
-        if (light.light.type == LIGHT_TYPE_SPOT) {
-            debugRenderer.addLine(
-                light.position,
-                light.position + light.direction * 1.f,
-                glm::vec4{1.f, 0.f, 0.f, 1.f},
-                glm::vec4{0.f, 1.f, 0.f, 1.f});
-        } else if (light.light.type == LIGHT_TYPE_POINT) {
-            if (drawAABBs) {
-                const auto lightAABB = AABB{
-                    .min = glm::vec3(light.position - glm::vec3(light.light.range)),
-                    .max = glm::vec3(light.position + glm::vec3(light.light.range))};
-                debugRenderer.addAABBLines(lightAABB, light.light.color);
+    if (drawLightVisualization) {
+        for (const auto& light : lights) {
+            if (light.light.type == LIGHT_TYPE_SPOT) {
+                debugRenderer.addLine(
+                    light.position,
+                    light.position + light.direction * 1.f,
+                    glm::vec4{1.f, 0.f, 0.f, 1.f},
+                    glm::vec4{0.f, 1.f, 0.f, 1.f});
+            } else if (light.light.type == LIGHT_TYPE_POINT) {
+                if (drawAABBs) {
+                    const auto lightAABB = AABB{
+                        .min = glm::vec3(light.position - glm::vec3(light.light.range)),
+                        .max = glm::vec3(light.position + glm::vec3(light.light.range))};
+                    debugRenderer.addAABBLines(lightAABB, light.light.color);
+                }
+                debugRenderer.addLine(
+                    light.position, light.position + glm::vec3{0.f, 0.1f, 0.f}, light.light.color);
             }
-            debugRenderer.addLine(
-                light.position, light.position + glm::vec3{0.f, 0.1f, 0.f}, light.light.color);
         }
     }
 

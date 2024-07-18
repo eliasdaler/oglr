@@ -4,6 +4,7 @@
 #define MAX_SHADOW_CASTING_LIGHTS 32
 #define SHADOW_MAP_ARRAY_LAYERS 64
 #define LIGHT_TILE_SIZE 64
+#define MAX_LIGHTS_PER_TILE 16
 
 layout (binding = 0, std140) uniform CameraData
 {
@@ -38,7 +39,7 @@ layout(binding = 4, std430) readonly buffer LightsData {
 };
 
 struct LightTileData {
-    int lightIdx[16];
+    int lightIdx[MAX_LIGHTS_PER_TILE];
 };
 
 layout(binding = 5, std430) readonly buffer TileLightsData {
