@@ -283,9 +283,23 @@ void App::init()
         .blendEnabled = false,
     };
 
-    opaqueDrawState = gfx::GlobalState{
+    shadowPassDrawState = gfx::GlobalState{
         .depthTestEnabled = true,
         .depthWriteEnabled = true,
+        .cullingEnabled = true,
+        .blendEnabled = false,
+    };
+
+    depthPrePassDrawState = gfx::GlobalState{
+        .depthTestEnabled = true,
+        .depthWriteEnabled = true,
+        .cullingEnabled = true,
+        .blendEnabled = false,
+    };
+
+    opaqueDrawState = gfx::GlobalState{
+        .depthTestEnabled = true,
+        .depthWriteEnabled = false,
         .cullingEnabled = true,
         .blendEnabled = false,
     };
@@ -685,7 +699,7 @@ void App::render()
 
     {
         GL_DEBUG_GROUP("Shadow pass");
-        gfx::setGlobalState(opaqueDrawState);
+        gfx::setGlobalState(shadowPassDrawState);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shadowMapFBO);
         glViewport(0, 0, shadowMapSize, shadowMapSize);
         glUseProgram(depthOnlyShader);
@@ -702,9 +716,9 @@ void App::render()
         }
     }
 
-    { // draw scene
-        GL_DEBUG_GROUP("Draw world");
-        gfx::setGlobalState(frameStartState);
+    {
+        GL_DEBUG_GROUP("Depth pre-pass");
+        gfx::setGlobalState(depthPrePassDrawState);
 
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, mainDrawFBO);
         glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -714,9 +728,22 @@ void App::render()
         GLfloat depthValue{1.f};
         glClearNamedFramebufferfv(mainDrawFBO, GL_DEPTH, 0, &depthValue);
 
+        glBindBufferRange(
+            GL_UNIFORM_BUFFER,
+            CAMERA_DATA_BINDING,
+            sceneDataBuffer.buffer,
+            mainCameraUboOffset,
+            sizeof(UBOCameraData));
+
+        glUseProgram(depthOnlyShader);
+        renderSceneObjects(opaqueDrawList);
+    }
+
+    { // draw scene
+        glDepthFunc(GL_EQUAL);
+
         // object texture will be read from TU0
         glProgramUniform1i(worldShader, FRAG_TEXTURE_UNIFORM_LOC, 0);
-
         // gobo texture will be read from TU1
         constexpr auto GOBO_TEXTURE_UNIFORM_LOC = 2;
         constexpr auto GOBO_TEX_ID = 3;
@@ -734,6 +761,7 @@ void App::render()
             sceneDataBuffer.buffer,
             mainCameraUboOffset,
             sizeof(UBOCameraData));
+
         glBindBufferRange(
             GL_UNIFORM_BUFFER,
             LIGHT_DATA_BINDING,
@@ -757,6 +785,8 @@ void App::render()
             renderSceneObjects(transparentDrawList);
         }
     }
+
+    glDepthFunc(GL_LESS);
 
     // restore default FBO
     // we'll draw everything into it

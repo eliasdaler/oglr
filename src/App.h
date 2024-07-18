@@ -157,6 +157,8 @@ private:
     std::array<std::vector<DrawInfo>, SHADOW_MAP_ARRAY_LAYERS> shadowMapOpaqueDrawLists;
 
     gfx::GlobalState frameStartState;
+    gfx::GlobalState shadowPassDrawState;
+    gfx::GlobalState depthPrePassDrawState;
     gfx::GlobalState opaqueDrawState;
     gfx::GlobalState transparentDrawState;
     gfx::GlobalState postFXDrawState;
