@@ -47,66 +47,106 @@ Frustum createFrustumFromVPMatrix(const glm::mat4& m)
     // Need to negate everything because we're looking at -Z, not +Z
     // NOTE: if clipNearZ == 0, then farFace = {-m[0][2], -m[1][2], -m[2][2], -m[3][2]}
     Frustum frustum;
-    frustum.nearFace =
-        {-(m[0][3] + m[0][2]), -(m[1][3] + m[1][2]), -(m[2][3] + m[2][2]), -(m[3][3] + m[3][2])};
 
-    frustum.farFace =
-        {-(m[0][3] - m[0][2]), -(m[1][3] - m[1][2]), -(m[2][3] - m[2][2]), -(m[3][3] - m[3][2])};
+    frustum.nearFace = {
+        -(m[0][3] + m[0][2]),
+        -(m[1][3] + m[1][2]),
+        -(m[2][3] + m[2][2]),
+        -(m[3][3] + m[3][2]),
+    };
 
-    frustum.leftFace =
-        {-(m[0][3] + m[0][0]), -(m[1][3] + m[1][0]), -(m[2][3] + m[2][0]), -(m[3][3] + m[3][0])};
-    frustum.rightFace =
-        {-(m[0][3] - m[0][0]), -(m[1][3] - m[1][0]), -(m[2][3] - m[2][0]), -(m[3][3] - m[3][0])};
+    frustum.farFace = {
+        -(m[0][3] - m[0][2]),
+        -(m[1][3] - m[1][2]),
+        -(m[2][3] - m[2][2]),
+        -(m[3][3] - m[3][2]),
+    };
 
-    frustum.bottomFace =
-        {-(m[0][3] + m[0][1]), -(m[1][3] + m[1][1]), -(m[2][3] + m[2][1]), -(m[3][3] + m[3][1])};
-    frustum.topFace =
-        {-(m[0][3] - m[0][1]), -(m[1][3] - m[1][1]), -(m[2][3] - m[2][1]), -(m[3][3] - m[3][1])};
+    frustum.leftFace = {
+        -(m[0][3] + m[0][0]),
+        -(m[1][3] + m[1][0]),
+        -(m[2][3] + m[2][0]),
+        -(m[3][3] + m[3][0]),
+    };
+    frustum.rightFace = {
+        -(m[0][3] - m[0][0]),
+        -(m[1][3] - m[1][0]),
+        -(m[2][3] - m[2][0]),
+        -(m[3][3] - m[3][0]),
+    };
+
+    frustum.bottomFace = {
+        -(m[0][3] + m[0][1]),
+        -(m[1][3] + m[1][1]),
+        -(m[2][3] + m[2][1]),
+        -(m[3][3] + m[3][1]),
+    };
+
+    frustum.topFace = {
+        -(m[0][3] - m[0][1]),
+        -(m[1][3] - m[1][1]),
+        -(m[2][3] - m[2][1]),
+        -(m[3][3] - m[3][1]),
+    };
 
     return frustum;
 }
 
 Frustum createSubFrustum(const glm::mat4& m, int tileX, int tileY, int numTilesX, int numTilesY)
 {
+    // Based on http://www8.cs.umu.se/kurser/5DV051/HT12/lab/plane_extraction.pdf
+    // We subdivide frustum by numTilesX on X and numTilesY on Y
+    // And then figure out the planes from tileX and tileY based on similar derivations
+    // NOTE: if clipNearZ == 0, then farFace = {-m[0][2], -m[1][2], -m[2][2], -m[3][2]}
     Frustum frustum;
-    // same as previous
-    frustum.nearFace =
-        {-(m[0][3] + m[0][2]), -(m[1][3] + m[1][2]), -(m[2][3] + m[2][2]), -(m[3][3] + m[3][2])};
 
-    frustum.farFace =
-        {-(m[0][3] - m[0][2]), -(m[1][3] - m[1][2]), -(m[2][3] - m[2][2]), -(m[3][3] - m[3][2])};
+    frustum.nearFace = {
+        -(m[0][3] + m[0][2]),
+        -(m[1][3] + m[1][2]),
+        -(m[2][3] + m[2][2]),
+        -(m[3][3] + m[3][2]),
+    };
+
+    frustum.farFace = {
+        -(m[0][3] - m[0][2]),
+        -(m[1][3] - m[1][2]),
+        -(m[2][3] - m[2][2]),
+        -(m[3][3] - m[3][2]),
+    };
 
     const auto L = (1.f - 2.f * (float)tileX / (float)numTilesX);
     const auto R = (2.f * (float)(tileX + 1) / (float)numTilesX - 1.f);
 
-    frustum.leftFace =
-        {-(L * m[0][3] + m[0][0]),
-         -(L * m[1][3] + m[1][0]),
-         -(L * m[2][3] + m[2][0]),
-         -(L * m[3][3] + m[3][0])};
+    frustum.leftFace = {
+        -(L * m[0][3] + m[0][0]),
+        -(L * m[1][3] + m[1][0]),
+        -(L * m[2][3] + m[2][0]),
+        -(L * m[3][3] + m[3][0]),
+    };
 
-    frustum.rightFace =
-        {-(R * m[0][3] - m[0][0]),
-         -(R * m[1][3] - m[1][0]),
-         -(R * m[2][3] - m[2][0]),
-         -(R * m[3][3] - m[3][0])};
+    frustum.rightFace = {
+        -(R * m[0][3] - m[0][0]),
+        -(R * m[1][3] - m[1][0]),
+        -(R * m[2][3] - m[2][0]),
+        -(R * m[3][3] - m[3][0]),
+    };
 
-    const auto B = (2.f * (float)(tileY + 1) / (float)numTilesY - 1.f);
     const auto T = (1.f - 2.f * (float)tileY / (float)numTilesY);
-    // const auto B = -(1.f - 2.f * (float)(tileY) / (float)numTilesY);
-    // const auto T = -(2.f * (float)(tileY + 1.f) / (float)numTilesY - 1);
+    const auto B = (2.f * (float)(tileY + 1) / (float)numTilesY - 1.f);
 
-    frustum.bottomFace =
-        {-(B * m[0][3] + m[0][1]),
-         -(B * m[1][3] + m[1][1]),
-         -(B * m[2][3] + m[2][1]),
-         -(B * m[3][3] + m[3][1])};
+    frustum.bottomFace = {
+        -(B * m[0][3] + m[0][1]),
+        -(B * m[1][3] + m[1][1]),
+        -(B * m[2][3] + m[2][1]),
+        -(B * m[3][3] + m[3][1]),
+    };
 
-    frustum.topFace =
-        {-(T * m[0][3] - m[0][1]),
-         -(T * m[1][3] - m[1][1]),
-         -(T * m[2][3] - m[2][1]),
-         -(T * m[3][3] - m[3][1])};
+    frustum.topFace = {
+        -(T * m[0][3] - m[0][1]),
+        -(T * m[1][3] - m[1][1]),
+        -(T * m[2][3] - m[2][1]),
+        -(T * m[3][3] - m[3][1]),
+    };
 
     return frustum;
 }
@@ -152,4 +192,5 @@ bool isInFrustum(const Frustum& frustum, const Sphere& s)
     }
     return res;
 }
+
 }

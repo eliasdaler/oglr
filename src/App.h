@@ -30,7 +30,6 @@ struct DrawInfo {
     std::size_t objectIdx;
     std::size_t uboOffset;
     float distToCamera;
-    std::array<int, MAX_AFFECTING_LIGHTS> lightIdx;
 };
 
 struct Frustum;
@@ -118,7 +117,9 @@ private:
     };
     std::size_t MAX_CAMERAS_IN_UBO = 128;
 
-    struct UBOLightData {
+    struct UBOGlobalData {
+        glm::vec4 screenSizeAndUnused;
+
         glm::vec3 ambientColor;
         float ambientIntensity;
 
@@ -130,9 +131,6 @@ private:
     struct UBOPerObjectData {
         glm::mat4 model;
         glm::vec4 props; // x - object alpha, yzw - unused
-        std::array<std::int32_t, MAX_AFFECTING_LIGHTS> lightIdx; // indices of lights in
-                                                                 // LightData.lights affecting the
-                                                                 // object
     };
     GPUBuffer sceneDataBuffer;
 

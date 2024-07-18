@@ -83,6 +83,16 @@ float calculateOcclusionPoint(vec3 fragPos, vec3 lightPos, float NoL, uint start
 	return texture(shadowMapTex, vec4(uv, startIndex + faceIndex, depthBufferZ - bias));
 }
 
+int calculateLightTileIndex() {
+    vec2 screenSize = screenSizeAndUnused.xy;
+    vec2 screenCoord = gl_FragCoord.xy;
+    screenCoord.y = screenSize.y - screenCoord.y;
+    float tilesX = ceil(screenSize.x / LIGHT_TILE_SIZE);
+    float tileIdx = floor(screenCoord.x / LIGHT_TILE_SIZE) +
+                    floor(screenCoord.y / LIGHT_TILE_SIZE) * tilesX;
+    return int(tileIdx);
+}
+
 void main()
 {
     vec3 fragPos = inPos;
@@ -95,15 +105,8 @@ void main()
     fragColor.rgb += calculateLight(fragPos, n, v, diffuse, sunLight, 1.0);
 
     // other lights
-    vec2 screenSize = vec2(1280, 960);
-    float TILE_SIZE = 64;
-    vec2 screenCoord = gl_FragCoord.xy;
-    screenCoord.y = screenSize.y - screenCoord.y;
-    float tilesX = ceil(screenSize.x / TILE_SIZE);
-    float tileIdx = floor(screenCoord.x / TILE_SIZE) +
-                    floor(screenCoord.y / TILE_SIZE) * tilesX;
-
-    LightTileData td = tileLightData[int(tileIdx)];
+    int tileIdx = calculateLightTileIndex();
+    LightTileData td = tileLightData[tileIdx];
     int lightsTotal = 0;
     for (int i = 0; i < 16; i++) {
         int idx = td.lightIdx[i];
@@ -140,7 +143,6 @@ void main()
     }
 #endif
 
-
     // gobo
     /* vec4 fragPosLightSpace = spotLightSpaceTM * vec4(fragPos, 1.f);
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
@@ -153,9 +155,11 @@ void main()
         fragColor.rgb += goboLight;
     } */
 
+#if 0
     if (td.lightIdx[0] == -1) {
-        // fragColor.r *= 5.0;
+        fragColor.r *= 5.0;
     }
+#endif
 
     fragColor.a = props.x;
 }

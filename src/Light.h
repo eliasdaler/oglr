@@ -14,7 +14,6 @@ inline constexpr int LIGHT_TYPE_POINT = 1;
 inline constexpr int LIGHT_TYPE_SPOT = 2;
 
 // keep in sync with basic_shader_uniforms.glsl
-inline constexpr std::size_t MAX_AFFECTING_LIGHTS = 8;
 inline constexpr std::size_t MAX_SHADOW_CASTING_LIGHTS = 32;
 
 struct Light {

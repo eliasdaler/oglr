@@ -26,7 +26,7 @@ constexpr auto WINDOW_HEIGHT = 960;
 constexpr auto FRAG_TEXTURE_UNIFORM_LOC = 1;
 
 constexpr auto CAMERA_DATA_BINDING = 0;
-constexpr auto LIGHT_DATA_BINDING = 1;
+constexpr auto GLOBAL_DATA_BINDING = 1;
 constexpr auto PER_OBJECT_DATA_BINDING = 2;
 constexpr auto VERTEX_DATA_BINDING = 3;
 constexpr auto LIGHTS_DATA_BINDING = 4;
@@ -89,54 +89,6 @@ void sortDrawList(std::vector<DrawInfo>& drawList, SortOrder sortOrder)
             }
             return draw1.distToCamera <= draw2.distToCamera;
         });
-}
-
-std::array<int, MAX_AFFECTING_LIGHTS> getClosestLights(
-    const glm::vec3& objPos,
-    const std::vector<CPULightData>& lights)
-{
-    struct LightDist {
-        std::size_t idx;
-        float dist;
-    };
-    std::vector<LightDist> dists;
-
-    // NOTE: currentLightIdx is used there, not "i", because
-    // we're only uploading non-culled lights to our UBO
-    // and the indices in PerObjectData.lightIdx should match that
-    std::size_t currentLightIdx = 0;
-    for (std::size_t i = 0; i < lights.size(); ++i) {
-        if (lights[i].culled) {
-            continue;
-        }
-        auto ld = LightDist{
-            .idx = currentLightIdx,
-            .dist = glm::length(lights[i].position - objPos),
-        };
-        // HACK: always include spot lights for image stability
-        if (lights[i].light.type == LIGHT_TYPE_SPOT) {
-            ld.dist = 0;
-        }
-        dists.push_back(ld);
-        ++currentLightIdx;
-    }
-
-    std::sort(dists.begin(), dists.end(), [](const auto& d1, const auto& d2) {
-        return d1.dist <= d2.dist;
-    });
-
-    std::array<int, MAX_AFFECTING_LIGHTS> lightIdx;
-
-    // select closes MAX_AFFECTING_LIGHTS
-    // and if not enough - add (MAX_LIGHTS_IN_UBO + 1), indicating "no light"
-    for (int i = 0; i < MAX_AFFECTING_LIGHTS; ++i) {
-        if (i < dists.size()) {
-            lightIdx[i] = dists[i].idx;
-        } else {
-            lightIdx[i] = -1;
-        }
-    }
-    return lightIdx;
 }
 
 } // end of anonymous namespace
@@ -223,7 +175,7 @@ void App::init()
 
     { // allocate scene data buffer
         const auto cameraDataSize = gfx::getAlignedSize(sizeof(UBOCameraData), uboAlignment);
-        const auto lightDataSize = gfx::getAlignedSize(sizeof(UBOLightData), uboAlignment);
+        const auto lightDataSize = gfx::getAlignedSize(sizeof(UBOGlobalData), uboAlignment);
         const auto perObjectDataElementSize =
             gfx::getAlignedSize(sizeof(UBOPerObjectData), uboAlignment);
         const auto bufSize =
@@ -464,32 +416,6 @@ void App::initScene()
             .intensity = 0.15f,
         };
 
-        // generate some random floating point lights
-        std::uniform_real_distribution<float> posXZDist(-3.f, 3.f);
-        std::uniform_real_distribution<float> posYDist(3.f, 5.0f);
-        std::uniform_real_distribution<float> rangeDist(20.f, 20.f);
-        std::uniform_real_distribution<float> colorDist(0.2f, 0.9f);
-        std::uniform_real_distribution<float> rotationRadiusDist(1.f, 2.f);
-        std::uniform_real_distribution<float> rotationSpeedDist(-1.5f, 1.5f);
-        for (std::size_t i = 0; i < 12; ++i) {
-            lights.push_back(CPULightData{
-                .position = {posXZDist(rng), posYDist(rng), posXZDist(rng)},
-                .light =
-                    Light{
-                        .type = LIGHT_TYPE_POINT,
-                        .color = {colorDist(rng), colorDist(rng), colorDist(rng), 1.f},
-                        .intensity = 0.5f,
-                        .range = rangeDist(rng),
-                    },
-                .rotationOrigin = {posXZDist(rng), posYDist(rng), posXZDist(rng)},
-                .rotationRadius = rotationRadiusDist(rng),
-                .rotationSpeed = rotationSpeedDist(rng),
-                .castsShadow = false,
-            });
-        }
-        lights[0].position = glm::vec3{4.f, 3.5f, 4.f};
-        // lights[1].position = {-4.f, 3.f, 0.f};
-
         addSpotLight(
             {-3.f, 3.5f, 2.f}, // pos
             glm::normalize(glm::vec3(1.f, -1.f, 1.f)), // dir
@@ -517,6 +443,35 @@ void App::initScene()
             },
             true // cast shadow
         );
+
+        // generate some random floating point lights
+        std::uniform_real_distribution<float> posXZDist(-3.f, 3.f);
+        std::uniform_real_distribution<float> posYDist(3.f, 7.0f);
+        std::uniform_real_distribution<float> rangeDist(20.f, 20.f);
+        std::uniform_real_distribution<float> colorDist(0.2f, 0.9f);
+        std::uniform_real_distribution<float> rotationRadiusDist(1.f, 2.f);
+        std::uniform_real_distribution<float> rotationSpeedDist(-1.5f, 1.5f);
+        for (std::size_t i = 0; i < 32; ++i) {
+            lights.push_back(CPULightData{
+                .position = {posXZDist(rng), posYDist(rng), posXZDist(rng)},
+                .light =
+                    Light{
+                        .type = LIGHT_TYPE_POINT,
+                        .color = {colorDist(rng), colorDist(rng), colorDist(rng), 1.f},
+                        .intensity = 0.5f,
+                        .range = rangeDist(rng),
+                    },
+                .rotationOrigin = {posXZDist(rng), posYDist(rng), posXZDist(rng)},
+                .rotationRadius = rotationRadiusDist(rng),
+                .rotationSpeed = rotationSpeedDist(rng),
+                .castsShadow = false,
+            });
+        }
+        lights[0].castsShadow = true;
+        lights[1].castsShadow = true;
+        lights[2].castsShadow = true;
+        // lights[0].position = glm::vec3{4.f, 3.5f, 4.f};
+        // lights[1].position = {-4.f, 3.f, 0.f};
     }
 }
 
@@ -788,10 +743,10 @@ void App::render()
 
         glBindBufferRange(
             GL_UNIFORM_BUFFER,
-            LIGHT_DATA_BINDING,
+            GLOBAL_DATA_BINDING,
             sceneDataBuffer.buffer,
             lightDataUboOffset,
-            sizeof(UBOLightData));
+            sizeof(UBOGlobalData));
 
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, LIGHTS_DATA_BINDING, lightsBuffer.buffer);
         glBindBufferBase(
@@ -872,7 +827,6 @@ void App::generateDrawList()
         drawList.push_back(DrawInfo{
             .objectIdx = i,
             .distToCamera = distToCamera,
-            .lightIdx = getClosestLights(object.transform.position, lights),
         });
     }
 
@@ -900,13 +854,13 @@ void App::generateDrawList()
 
     generateShadowMapDrawList();
 
-    // tile calculations
+    // Calculate which lights are in which tiles
     const auto numTilesX = (int)(std::ceil((float)WINDOW_WIDTH / tileSize));
     const auto numTilesY = (int)(std::ceil((float)WINDOW_HEIGHT / tileSize));
-
     const auto cameraVP = camera.getViewProj();
     for (std::size_t tileIndex = 0; tileIndex < lightsPerTile.size(); ++tileIndex) {
         auto& tileLightIndices = lightsPerTile[tileIndex];
+        // clear
         for (int i = 0; i < MAX_LIGHTS_PER_TILE; ++i) {
             tileLightIndices[i] = -1;
         }
@@ -928,8 +882,8 @@ void App::generateDrawList()
             }
 
             tileLightIndices[lightIdxInTile] = lightIdx;
-
             ++lightIdxInTile;
+
             ++lightIdx;
 
             if (lightIdxInTile >= MAX_LIGHTS_PER_TILE) {
@@ -1056,8 +1010,9 @@ void App::uploadSceneData()
         }
     }
 
-    auto ld = UBOLightData{
+    auto ld = UBOGlobalData{
         // ambient
+        .screenSizeAndUnused = glm::vec4{WINDOW_WIDTH, WINDOW_HEIGHT, 0.f, 0.f},
         .ambientColor = glm::vec3{ambientColor},
         .ambientIntensity = ambientIntensity,
         .sunLight = toGPULightData({}, sunLightDir, sunLight),
@@ -1088,7 +1043,6 @@ void App::uploadSceneData()
         const auto d = UBOPerObjectData{
             .model = object.transform.asMatrix(),
             .props = glm::vec4{object.alpha, 0.f, 0.f, 0.f},
-            .lightIdx = drawInfo.lightIdx,
         };
         drawInfo.uboOffset = sceneData.append(d, uboAlignment);
     }
@@ -1224,30 +1178,6 @@ void App::renderDebugObjects()
             debugRenderer.addAABBLines(object.worldAABB, glm::vec4{1.f, 0.f, 1.f, 1.f});
         }
     }
-
-    int tilesX = std::ceil((float)WINDOW_WIDTH / tileSize);
-    auto tileX = debugTileIdx % tilesX;
-    auto tileY = debugTileIdx / tilesX;
-    auto screenCoordX = tileX * tileSize;
-    auto screenCoordY = tileY * tileSize;
-    normCoordX = (float)screenCoordX / (float)WINDOW_WIDTH * 2.f - 1.f;
-    normCoordY = (float)screenCoordY / (float)WINDOW_HEIGHT * 2.f - 1.f;
-
-    auto p = testCamera.getProjection();
-    auto po = p;
-
-    auto sx = (float)WINDOW_WIDTH / tileSize;
-    auto sy = (float)WINDOW_HEIGHT / tileSize;
-    p = glm::scale(p, glm::vec3{sx, sy, 1.f});
-    auto v = testCamera.getView();
-
-    auto lightPos = lights[0].position;
-    auto vPos = v * glm::vec4(lightPos, 1.f);
-    auto projectedPos = po * vPos;
-    projectedPos /= projectedPos.w;
-
-    auto projectedPos2 = p * vPos;
-    projectedPos2 /= projectedPos2.w;
 
     { // world origin
         debugRenderer.addLine(
