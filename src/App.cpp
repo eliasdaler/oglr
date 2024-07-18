@@ -207,7 +207,8 @@ void App::init()
             loadShaderProgram("assets/shaders/basic.vert", "assets/shaders/basic.frag", "world");
         assert(worldShader);
 
-        depthOnlyShader = gfx::loadShaderProgram("assets/shaders/basic.vert", "", "depth_only");
+        depthOnlyShader =
+            gfx::loadShaderProgram("assets/shaders/depth_only.vert", "", "depth_only");
         assert(depthOnlyShader);
 
         solidColorShader = gfx::loadShaderProgram(
