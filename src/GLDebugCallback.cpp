@@ -1,6 +1,5 @@
 #include "GLDebugCallback.h"
 
-#include <format>
 #include <glad/gl.h>
 #include <iostream>
 
@@ -99,8 +98,7 @@ void GLDebugMessageCallback(
         break;
     }
 
-    std::cout << std::
-            format("{}: {}: {}, raised from {}: {}\n", id, typeStr, severityStr, sourceStr, msg);
+    std::cout << id << ": " << typeStr << ": " << severityStr << ", raised from " << sourceStr << ": " << msg << std::endl;
 }
 } // end of anonymous namespace
 
